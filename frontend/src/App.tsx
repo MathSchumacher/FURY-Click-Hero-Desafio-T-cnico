@@ -39,6 +39,8 @@ import './components/auth/AuthLayout.css';
 import './components/auth/AuthField.css';
 import './components/auth/AuthForm.css';
 import './components/dashboard/Sidebar.css';
+import './components/dashboard/SimulateViolationPanel.css';
+import './components/dashboard/RecentViolationsPanel.css';
 import './pages/Dashboard.css';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 

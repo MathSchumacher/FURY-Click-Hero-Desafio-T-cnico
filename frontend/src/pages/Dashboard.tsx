@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Sidebar } from '../components/dashboard/Sidebar';
+import { SimulateViolationPanel } from '../components/dashboard/SimulateViolationPanel';
+import { RecentViolationsPanel } from '../components/dashboard/RecentViolationsPanel';
 import { LiveDashboard } from '../components/sections/LiveDashboard';
 import { useAuth } from '../hooks/useAuth';
+import { useStats } from '../hooks/useBackendLive';
 
 function greetingFor(name: string): string {
   const hour = new Date().getHours();
@@ -12,15 +15,51 @@ function greetingFor(name: string): string {
   return `Boa noite, ${first}`;
 }
 
-const QUICK_STATS: Array<{ label: string; value: string; delta: string; positive: boolean }> = [
-  { label: 'Anúncios ativos',        value: '43',        delta: '+2 hoje',    positive: true  },
-  { label: 'ROAS médio (24h)',       value: '3.42x',     delta: '+18.4%',     positive: true  },
-  { label: 'Ações executadas',       value: '12',        delta: 'em 24h',     positive: true  },
-  { label: 'Receita protegida hoje', value: 'R$ 2.847',  delta: '+R$ 412/h',  positive: true  },
-];
+type QuickStatCard = { label: string; value: string; delta: string; positive: boolean };
+
+function buildQuickStats(stats: ReturnType<typeof useStats>['data']): QuickStatCard[] {
+  if (!stats) {
+    return [
+      { label: 'Em processamento', value: '—',    delta: 'carregando…', positive: true },
+      { label: 'Takedowns concluídos', value: '—', delta: 'carregando…', positive: true },
+      { label: 'Total monitorado', value: '—',     delta: 'carregando…', positive: true },
+      { label: 'Falhas (retries esgotados)', value: '—', delta: 'carregando…', positive: true },
+    ];
+  }
+  const inFlight = stats.byStatus.queued + stats.byStatus.active;
+  const criticalCount = stats.bySeverity.CRITICAL + stats.bySeverity.HIGH;
+  return [
+    {
+      label: 'Em processamento',
+      value: String(inFlight),
+      delta: `${stats.byStatus.queued} aguardando · ${stats.byStatus.active} ativos`,
+      positive: true,
+    },
+    {
+      label: 'Takedowns concluídos',
+      value: String(stats.byStatus.completed),
+      delta: stats.byStatus.completed > 0 ? 'no histórico' : 'sem registros ainda',
+      positive: true,
+    },
+    {
+      label: 'Total monitorado',
+      value: String(stats.total),
+      delta: `${criticalCount} alta severidade`,
+      positive: true,
+    },
+    {
+      label: 'Falhas (retries esgotados)',
+      value: String(stats.byStatus.failed),
+      delta: stats.byStatus.failed === 0 ? 'tudo limpo' : 'requer atenção',
+      positive: stats.byStatus.failed === 0,
+    },
+  ];
+}
 
 export default function DashboardPage(): JSX.Element {
   const { user } = useAuth();
+  const { data: stats } = useStats(4000);
+  const quickStats = buildQuickStats(stats);
   const [collapsed, setCollapsed] = useState<boolean>(
     () => typeof window !== 'undefined' && localStorage.getItem('fury_sidebar_collapsed') === 'true',
   );
@@ -63,7 +102,7 @@ export default function DashboardPage(): JSX.Element {
         </section>
 
         <section className="dash-quick">
-          {QUICK_STATS.map((s) => (
+          {quickStats.map((s) => (
             <article key={s.label} className="dash-quick__card">
               <div className="dash-quick__label">{s.label}</div>
               <div className="dash-quick__value gradient-text">{s.value}</div>
@@ -72,6 +111,11 @@ export default function DashboardPage(): JSX.Element {
               </div>
             </article>
           ))}
+        </section>
+
+        <section className="dash-realtime">
+          <SimulateViolationPanel />
+          <RecentViolationsPanel />
         </section>
 
         <section className="dash-live">

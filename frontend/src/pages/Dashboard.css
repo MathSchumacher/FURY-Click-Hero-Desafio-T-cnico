@@ -138,6 +138,19 @@
 /* ── Live dashboard wrapper ───────────────────────── */
 .dash-live { margin-bottom: var(--sp-8); }
 
+/* ── Realtime row: Simulate panel + Recent violations ── */
+.dash-realtime {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-6);
+}
+@media (max-width: 1100px) {
+  .dash-realtime {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── Side cards (connections + suggestions) ──────── */
 .dash-side-grid {
   display: grid;

@@ -1,0 +1,283 @@
+/* ============================================================
+   Simulate Violation Panel — dispara webhook real + acompanha o job
+   ============================================================ */
+
+.simviol {
+  background:
+    linear-gradient(180deg, rgba(255, 122, 24, 0.04), transparent 60%),
+    rgba(255, 255, 255, 0.015);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+  padding: var(--sp-5) var(--sp-5);
+  position: relative;
+  overflow: hidden;
+}
+
+.simviol::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 122, 24, 0.6) 50%,
+    transparent 100%
+  );
+}
+
+.simviol__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.simviol__title {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  margin: 0 0 6px;
+  letter-spacing: -0.01em;
+}
+
+.simviol__sub {
+  margin: 0;
+  color: var(--c-text-dim);
+  font-size: 0.92rem;
+  max-width: 540px;
+}
+
+.simviol__tenant {
+  font-size: 0.84rem;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+}
+.simviol__tenant-slug {
+  color: var(--c-accent);
+}
+
+.simviol__form {
+  display: grid;
+  grid-template-columns: 1.2fr 1.2fr 1.5fr auto;
+  gap: var(--sp-3);
+  align-items: end;
+}
+@media (max-width: 960px) {
+  .simviol__form {
+    grid-template-columns: 1fr 1fr;
+  }
+  .simviol__submit {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 640px) {
+  .simviol__form {
+    grid-template-columns: 1fr;
+  }
+}
+
+.simviol__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.simviol__label {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  text-transform: lowercase;
+  letter-spacing: 0.05em;
+  color: var(--c-text-dim);
+}
+
+.simviol__input-row {
+  display: flex;
+  gap: 6px;
+}
+.simviol__input {
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  color: var(--c-text);
+  font-family: inherit;
+  font-size: 0.92rem;
+  transition: border-color var(--t-fast);
+}
+.simviol__input:focus {
+  outline: none;
+  border-color: var(--c-border-accent);
+}
+.simviol__shuffle {
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  color: var(--c-text-dim);
+  font-size: 1.05rem;
+  cursor: pointer;
+  transition: all var(--t-fast);
+}
+.simviol__shuffle:hover {
+  color: var(--c-accent);
+  border-color: var(--c-border-accent);
+}
+
+.simviol__severity-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.simviol__severity {
+  padding: 9px 6px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  color: var(--c-text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all var(--t-fast);
+}
+.simviol__severity:hover {
+  border-color: var(--c-border-accent);
+  color: var(--c-text);
+}
+
+.simviol__submit {
+  white-space: nowrap;
+  padding: 11px 22px;
+}
+
+/* ── Error ─────────────────────────────────────────────────── */
+.simviol__error {
+  margin-top: var(--sp-3);
+  padding: 10px 14px;
+  background: rgba(255, 61, 46, 0.1);
+  border: 1px solid rgba(255, 61, 46, 0.3);
+  border-radius: var(--r-md);
+  color: #ff8a7a;
+  font-size: 0.9rem;
+}
+
+/* ── Job timeline ──────────────────────────────────────────── */
+.simviol__job {
+  margin-top: var(--sp-4);
+  padding: var(--sp-4);
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+}
+
+.simviol__job-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
+  margin-bottom: var(--sp-3);
+}
+.simviol__job-id {
+  color: var(--c-accent);
+  word-break: break-all;
+}
+
+.simviol__timeline {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  padding: var(--sp-2) 0;
+}
+.simviol__step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--c-text-dim);
+  position: relative;
+}
+.simviol__step + .simviol__step::before {
+  content: '';
+  position: absolute;
+  left: -16px;
+  width: 8px;
+  height: 1px;
+  background: var(--c-border);
+}
+.simviol__step-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--c-border);
+}
+.simviol__step.is-past .simviol__step-dot,
+.simviol__step.is-past + .simviol__step::before {
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+}
+.simviol__step.is-past .simviol__step-label {
+  color: var(--c-text);
+}
+.simviol__step.is-current .simviol__step-dot {
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 4px rgba(255, 122, 24, 0.18);
+  animation: simviolPulse 1.2s ease-in-out infinite;
+}
+.simviol__step.is-current .simviol__step-label {
+  color: var(--c-accent);
+}
+.simviol__step.is-failed .simviol__step-dot {
+  background: #ff3d2e;
+  border-color: #ff3d2e;
+  box-shadow: 0 0 0 4px rgba(255, 61, 46, 0.25);
+  animation: none;
+}
+.simviol__step.is-failed .simviol__step-label {
+  color: #ff8a7a;
+}
+@keyframes simviolPulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.15); }
+}
+
+.simviol__result {
+  margin-top: var(--sp-3);
+  display: grid;
+  gap: 6px;
+}
+.simviol__result-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.simviol__chip {
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--c-border);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--c-text);
+}
+.simviol__chip--ok {
+  background: rgba(43, 210, 121, 0.12);
+  border-color: rgba(43, 210, 121, 0.35);
+  color: #6fe2a4;
+}
+.simviol__chip--err {
+  background: rgba(255, 61, 46, 0.12);
+  border-color: rgba(255, 61, 46, 0.35);
+  color: #ff8a7a;
+}

@@ -1,0 +1,119 @@
+.recent-viol {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+  padding: var(--sp-5);
+}
+
+.recent-viol__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--sp-3);
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.recent-viol__title {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  margin: 0;
+}
+
+.recent-viol__empty {
+  padding: var(--sp-4);
+  color: var(--c-text-dim);
+  text-align: center;
+  font-size: 0.9rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px dashed var(--c-border);
+  border-radius: var(--r-md);
+}
+
+.recent-viol__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.recent-viol__item {
+  display: grid;
+  grid-template-columns: 4px 1fr auto;
+  gap: var(--sp-3);
+  align-items: center;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+}
+
+.recent-viol__severity {
+  width: 4px;
+  height: 100%;
+  min-height: 32px;
+  border-radius: 2px;
+}
+
+.recent-viol__main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.recent-viol__row1 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.recent-viol__ad {
+  color: var(--c-accent);
+  font-size: 0.88rem;
+}
+
+.recent-viol__type {
+  color: var(--c-text);
+  font-size: 0.88rem;
+}
+
+.recent-viol__row2 {
+  font-size: 0.74rem;
+}
+
+.recent-viol__status {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  text-transform: lowercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.recent-viol__status.is-queued {
+  background: rgba(150, 160, 180, 0.15);
+  border: 1px solid rgba(150, 160, 180, 0.3);
+  color: #b5b9c8;
+}
+.recent-viol__status.is-active {
+  background: rgba(255, 122, 24, 0.15);
+  border: 1px solid rgba(255, 122, 24, 0.4);
+  color: var(--c-accent);
+  animation: recentVioAct 1.5s ease-in-out infinite;
+}
+.recent-viol__status.is-completed {
+  background: rgba(43, 210, 121, 0.12);
+  border: 1px solid rgba(43, 210, 121, 0.35);
+  color: #6fe2a4;
+}
+.recent-viol__status.is-failed {
+  background: rgba(255, 61, 46, 0.12);
+  border: 1px solid rgba(255, 61, 46, 0.35);
+  color: #ff8a7a;
+}
+@keyframes recentVioAct {
+  0%, 100% { opacity: 0.8; }
+  50%      { opacity: 1; }
+}
