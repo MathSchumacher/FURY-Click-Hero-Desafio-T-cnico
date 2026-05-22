@@ -22,6 +22,35 @@
 
 ---
 
+## 📋 Pré-requisitos
+
+| Dependência | Versão | Pra quê |
+|---|---|---|
+| **Node.js** | `>= 20.x` | runtime do backend + frontend (testado em 20 LTS e 22) |
+| **npm** | `>= 10.x` | vem com Node 20+ |
+| **Docker** | `>= 24` *(opcional)* | sobe Redis local com 1 comando — **ou** use Upstash setando `REDIS_URL` |
+| **Redis** | `>= 6` | persistência da fila BullMQ (local via Docker · cloud via Upstash · qualquer Redis-compat) |
+
+---
+
+## 📚 Índice
+
+- [Para o avaliador — leia primeiro](#-para-o-avaliador--leia-primeiro)
+- [Os 3 comandos que provam o desafio rodando](#-os-3-comandos-que-provam-o-desafio-rodando)
+- [Onde testar cada requisito](#-onde-testar-cada-requisito-acesso-rápido)
+- [Arquitetura do núcleo](#-arquitetura-do-núcleo-event-driven)
+- [Endpoints](#-endpoints)
+- [Testes (XP Gate)](#-testes-xp-gate)
+- [Variáveis de ambiente](#-variáveis-de-ambiente)
+- [Severity-driven retry](#-severity-driven-retry-extra-dentro-do-tema)
+- [Scripts](#-scripts-de-raiz)
+- [Decisões técnicas (trade-offs)](#-decisões-técnicas-trade-offs)
+- [Troubleshooting](#-troubleshooting)
+- [Disciplina técnica aplicada (XP)](#-disciplina-técnica-aplicada-xp)
+- [Produto FURY construído em volta do core](#-produto-fury-construído-em-volta-do-core)
+
+---
+
 ## 👋 Para o avaliador — leia primeiro
 
 **Onde está o core do desafio?** Tudo o que foi explicitamente pedido está em [`backend/`](backend/).
@@ -63,11 +92,17 @@ curl http://localhost:3001/jobs/tenant_acme__ad_8f3k29
 ```
 
 ```bash
-# 3️⃣  Idempotência: segundo POST com mesma chave enquanto está in-flight
+# 3️⃣  Idempotência: segundo POST com a MESMA chave enquanto está in-flight
 curl -X POST http://localhost:3001/webhook/violation \
   -H "Content-Type: application/json" \
-  -d '{ ...mesmo payload... }'
-# → 200 { "deduplicated": true, "message": "Já existe um job em andamento..." }
+  -d '{
+    "adId":          "ad_8f3k29",
+    "tenantId":      "tenant_acme",
+    "violationType": "PROHIBITED_TERM",
+    "severity":      "CRITICAL",
+    "detectedAt":    "2026-05-21T14:23:01Z"
+  }'
+# → 200 { "deduplicated": true, "jobId": "tenant_acme__ad_8f3k29", "status": "waiting" }
 ```
 
 **Quer ver os testes provando que tudo funciona?**
@@ -302,6 +337,34 @@ Backoff exponencial `1s/2s/4s` em todos os níveis. Pure function em [jobOptions
 
 ---
 
+## 🧭 Decisões técnicas (trade-offs)
+
+Cada escolha aqui foi um trade-off consciente — o que ganhei e o que abri mão:
+
+| Decisão | Por quê | O que ganho | O que abro mão |
+|---|---|---|---|
+| **`jobId = ${tenantId}__${adId}`** como chave determinística | É a forma mais simples de garantir idempotência sem tabela extra | Dedup gratuito vindo do BullMQ + zero schema novo | Separador `__` em vez de `:` (BullMQ reserva `:`) — exige doc explícita |
+| **BullMQ + Redis** em vez de RabbitMQ/Kafka/SQS | Desafio cabe em 1 processo; quero retries+backoff prontos e visibilidade rápida | Setup em minutos, dead-letter inspection, métricas de fila out-of-the-box | Single-broker SPOF (em produção: cluster Redis ou trocar pra SQS) |
+| **Worker no mesmo processo do API (`npm run dev`)** | Foco do desafio é o fluxo, não infra distribuída | Boot único, debug fácil, E2E real roda no CI sem orquestração | Não escala worker independente do API — separação trivial via `tsx watch src/worker.ts` |
+| **Testcontainers no E2E, mock em unit/integration** | Mocks de Redis mentem; mas E2E real é lento demais pra cada unit | 6 testes E2E provam o contrato real; 51 unit/integration rodam em <2s | Docker obrigatório no CI (skip local automático quando ausente) |
+| **PASETO V4 + Ed25519** em vez de JWT | JWT tem footguns conhecidos (`alg: none`, algoritmo confusion); PASETO é versionado | Sem zona cinzenta de algoritmo, chaves Ed25519, libs pequenas | Ecossistema menor que JWT — menos integrações prontas (mas o middleware reusável compensa) |
+| **Severity escala attempts (3→5)** em vez de fixo 3 | Aproveita o enum que o desafio já pede; CRITICAL merece persistir mais | Resposta proporcional à criticidade sem novo campo | Mais variabilidade de duração de job — observável via `/metrics` |
+
+---
+
+## 🆘 Troubleshooting
+
+| Sintoma | Causa provável | Como resolver |
+|---|---|---|
+| `Error: connect ECONNREFUSED 127.0.0.1:6379` ao subir o backend | Redis não está rodando | `npm run redis:up` (Docker) **ou** setar `REDIS_URL=rediss://...` no `backend/.env` apontando pra Upstash |
+| `Error: listen EADDRINUSE: :::3001` | Porta 3001 ocupada (outro processo ou backend já rodando) | `npx kill-port 3001` **ou** trocar `PORT` no `backend/.env` |
+| `docker: command not found` ao rodar E2E | Docker Desktop não instalado/rodando | Os 6 testes E2E ficam `skipped` automaticamente — os 57 unit/integration rodam normal. Pra rodar E2E: instale Docker Desktop |
+| `Custom Id cannot contain :` no log | Tentando enfileirar com jobId contendo `:` | Já corrigido — separador agora é `__`. Se aparecer em código novo, evite `:` em ids custom (BullMQ reserva esse char) |
+| Frontend abre mas backend não responde | Você rodou só `npm run dev:frontend` | Use `npm run dev` (sobe os dois) ou em paralelo `cd backend && npm run dev` |
+| Coverage falhando localmente após rebase | Cache antigo do Vitest/coverage | `rm -rf backend/coverage backend/node_modules/.vite && cd backend && npm run check` |
+
+---
+
 ## 🏗 Disciplina técnica aplicada (XP)
 
 1. **TDD em cada feature** — vermelho → verde → refator. Bug do `AbortError` no Node 18+ undici foi detectado pelo teste antes do código.
@@ -326,14 +389,14 @@ isolado com `cd backend && npm run dev`.
 
 ### Frontend ([frontend/](frontend/))
 
-- **Landing page** — Vite + React + GSAP (ScrollTrigger + SplitText) + R3F (modelo 3D do logo FURY interativo) + Clash Display + Satoshi via Fontshare · 12 seções com animações cinematográficas, vídeo de background processado, splash de abertura com iris reveal, cursor customizado com trail de embers, design system completo com tokens
-- **Dashboard pós-login** ([frontend/src/pages/Dashboard.tsx](frontend/src/pages/Dashboard.tsx)) — sidebar custom adaptada do design system, painel ao vivo simulando um cliente Acme Moda (ROAS em tempo real com Catmull-Rom spline, event log animado, severity donut, connections panel)
-- **Login + Register** com PASETO V4 real ([frontend/src/pages/Login.tsx](frontend/src/pages/Login.tsx)) — split-screen, password strength meter, OAuth mocks, error shake animation
-- **Responsividade**: 5 breakpoints (375 / 640 / 960 / 1100 / 1400+), tested
+- **Landing page** — Vite + React + GSAP + R3F · 12 seções animadas, modelo 3D interativo, splash com iris reveal, cursor custom com trail de embers
+- **Dashboard pós-login** ([Dashboard.tsx](frontend/src/pages/Dashboard.tsx)) — ROAS ao vivo (Catmull-Rom spline), event log animado, severity donut, connections panel
+- **Login + Register** com PASETO V4 real ([Login.tsx](frontend/src/pages/Login.tsx)) — split-screen, password strength meter, error shake
+- **Responsivo** em 5 breakpoints (375 / 640 / 960 / 1100 / 1400+)
 
 ### Backend bonus ([backend/src/auth/](backend/src/auth/))
 
-- **Auth PASETO V4** com Ed25519 + bcrypt cost 12 · endpoints `POST /auth/register`, `POST /auth/login`, `GET /auth/me` + middleware `requireAuth` reusável em qualquer endpoint protegido
+- **Auth PASETO V4** com Ed25519 + bcrypt cost 12 · `POST /auth/register`, `POST /auth/login`, `GET /auth/me` + middleware `requireAuth` reusável
 
 ### Por que está aqui
 
@@ -342,3 +405,13 @@ quis mostrar como esse núcleo se encaixaria num produto real — porque é assi
 produção vive. Os extras estão em arquivos independentes, não acoplam com o core e não
 poluem o XP gate do backend (auth está excluído do scope de coverage, frontend tem seu
 próprio pipeline).
+
+---
+
+<div align="center">
+
+**Matheus Schumacher** · [GitHub](https://github.com/MathSchumacher) · Desafio técnico FURY · 2026
+
+[![CI passing](https://img.shields.io/badge/última%20run-✅%20verde-success)](https://github.com/MathSchumacher/FURY-Click-Hero-Desafio-T-cnico/actions/workflows/ci.yml) · MIT
+
+</div>
