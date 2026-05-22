@@ -4,9 +4,17 @@ const INTERACTIVE_SELECTOR =
   'a, button, input, textarea, select, [role="button"], [data-cursor="hover"]';
 const GRAB_SELECTOR = '[data-cursor="grab"]';
 
-const isTouchDevice = (): boolean =>
-  typeof window !== 'undefined' &&
-  window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+/* Espelha a regra do FuryCursor.css: cursor custom só em desktop real.
+ * - `any-pointer: coarse` detecta touch mesmo em devices híbridos
+ *   (iPad com Pencil, Surface Pro) que mentem em `pointer: fine`.
+ * - viewport <1024px elimina tablets pequenos em qualquer orientação. */
+const isTouchDevice = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const hasAnyTouch = window.matchMedia('(any-pointer: coarse)').matches;
+  const isSmallScreen = window.matchMedia('(max-width: 1023px)').matches;
+  const hasFinePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  return hasAnyTouch || isSmallScreen || !hasFinePointer;
+};
 
 export default function FuryCursor(): JSX.Element | null {
   const wrapRef = useRef<HTMLDivElement | null>(null);

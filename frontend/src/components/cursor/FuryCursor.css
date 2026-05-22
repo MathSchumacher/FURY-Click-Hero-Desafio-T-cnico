@@ -2,10 +2,12 @@
    FURY Cursor — image-based ember arrow with orbital effects
    ============================================================ */
 
-/* Force-hide the native cursor on ALL elements (with text-input exceptions).
-   The !important is necessary because <a>, <button>, [role=button] etc. each
-   carry their own user-agent cursor (pointer/text) that would otherwise win. */
-@media (hover: hover) and (pointer: fine) {
+/* Cursor custom só em desktop "clássico": mouse + tela larga.
+   `any-pointer: coarse` cobre tablets híbridos (iPad+Pencil, Surface Pro)
+   que reportam hover:hover/pointer:fine mas têm touch disponível.
+   `min-width: 1024px` garante que tablets em portrait/landscape pequenos
+   sejam pegos mesmo se a media query primária mentir. */
+@media (hover: hover) and (pointer: fine) and (min-width: 1024px) {
   html, body, body * { cursor: none !important; }
   input[type="text"],
   input[type="email"],
@@ -18,7 +20,8 @@
   [contenteditable="true"] { cursor: text !important; }
 }
 
-@media (hover: none) and (pointer: coarse) {
+/* Em qualquer device touch (ou tela menor que desktop), cursor nativo manda. */
+@media (any-pointer: coarse), (max-width: 1023px) {
   body { cursor: auto; }
   a, button, input, [role="button"] { cursor: pointer; }
 }
