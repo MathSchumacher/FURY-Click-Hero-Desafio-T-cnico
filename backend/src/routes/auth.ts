@@ -8,6 +8,7 @@ import { recordAudit } from '../lib/audit.js';
 import { consumeOAuthState, issueOAuthState, type OAuthIntent } from '../auth/oauthState.js';
 import { signToken, verifyToken, type AuthClaims } from '../auth/paseto.js';
 import { isRevoked, revokeToken } from '../auth/revocation.js';
+import { SESSION_COOKIE, clearSessionCookie, setSessionCookie } from '../auth/cookies.js';
 import bcrypt from 'bcryptjs';
 import {
   consumeVerificationToken,
@@ -71,6 +72,7 @@ authRouter.post('/auth/register', authLimiter, async (req: Request, res: Respons
       metadata: { email: pub.email, tenantSlug: tenant.slug },
       req,
     });
+    setSessionCookie(res, token);
     return res
       .status(201)
       .json({ token, user: pub, tenant: { id: tenant.id, name: tenant.name, slug: tenant.slug } });
@@ -130,6 +132,7 @@ authRouter.post('/auth/login', authLimiter, async (req: Request, res: Response) 
     tenantId,
     req,
   });
+  setSessionCookie(res, token);
   return res.json({ token, user: pub, tenant: { id: tenantId } });
 });
 
@@ -285,6 +288,10 @@ authRouter.get('/auth/google/callback', async (req: Request, res: Response) => {
       tenantId: resolved.tenantId,
     });
 
+    setSessionCookie(res, token);
+    /* Mantém ?token=... no redirect durante transição — frontend usa
+       enquanto a migração pra cookies não completa. Quando concluir,
+       remover o query param (token só vive no cookie HttpOnly). */
     res.redirect(`${env.FRONTEND_URL}/auth/callback?token=${encodeURIComponent(token)}`);
     return;
   } catch (err) {
@@ -302,18 +309,29 @@ export interface AuthedRequest extends Request {
   auth?: AuthClaims;
 }
 
+/**
+ * Extrai token de: 1) cookie `fury_session` (preferencial — HttpOnly),
+ * 2) Authorization: Bearer (fallback pra CLI/API clients durante transição).
+ */
+function tokenFromRequest(req: AuthedRequest): string | null {
+  /* req.cookies vem do cookie-parser middleware. Tipo do Express é
+     Record<string, any>, então narrow antes de usar. */
+  const cookies = req.cookies as Record<string, unknown> | undefined;
+  const fromCookie = cookies?.[SESSION_COOKIE];
+  if (typeof fromCookie === 'string' && fromCookie.length > 0) {
+    return fromCookie;
+  }
+  const header = req.header('authorization') ?? '';
+  const m = /^Bearer\s+(.+)$/i.exec(header);
+  return m?.[1] ?? null;
+}
+
 export async function requireAuth(
   req: AuthedRequest,
   res: Response,
   next: NextFunction,
 ): Promise<void> {
-  const header = req.header('authorization') ?? '';
-  const m = /^Bearer\s+(.+)$/i.exec(header);
-  if (!m) {
-    res.status(401).json({ error: 'token ausente' });
-    return;
-  }
-  const token = m[1];
+  const token = tokenFromRequest(req);
   if (!token) {
     res.status(401).json({ error: 'token ausente' });
     return;
@@ -509,6 +527,7 @@ authRouter.post('/auth/logout', requireAuth, async (req: AuthedRequest, res: Res
     tenantId: claims.tenantId,
     req,
   });
+  clearSessionCookie(res);
   return res.json({ ok: true });
 });
 
