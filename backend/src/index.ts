@@ -40,8 +40,31 @@ app.use(
       : false,
     crossOriginEmbedderPolicy: false,
     crossOriginResourcePolicy: { policy: 'cross-origin' },
+    /* Default do Helmet inclui features experimentais (browsing-topics,
+       attribution-reporting, etc) que Chrome ainda não reconhece — gera
+       warnings em massa no console. Setamos só as features estáveis e
+       relevantes pra um SaaS B2B. */
+    permittedCrossDomainPolicies: { permittedPolicies: 'none' },
   }),
 );
+
+/* Permissions-Policy enxuto (substitui o default barulhento do Helmet). */
+app.use((_req, res, next) => {
+  res.setHeader(
+    'Permissions-Policy',
+    [
+      'accelerometer=()',
+      'autoplay=()',
+      'camera=()',
+      'geolocation=()',
+      'gyroscope=()',
+      'microphone=()',
+      'payment=()',
+      'usb=()',
+    ].join(', '),
+  );
+  next();
+});
 
 /* ── CORS allowlist. Em dev libera localhost:5173/3001 + FRONTEND_URL.
    Em prod, só FRONTEND_URL + CORS_ORIGINS extras (preview deploys, staging).
