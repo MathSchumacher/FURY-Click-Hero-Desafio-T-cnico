@@ -72,7 +72,7 @@ cd backend && npm run dev # http://localhost:3001
 
 ```json
 {
-  "jobId":   "tenant_acme:ad_8f3k29",
+  "jobId":   "tenant_acme__ad_8f3k29",
   "status":  "completed",
   "attempts": 1,
   "result": {

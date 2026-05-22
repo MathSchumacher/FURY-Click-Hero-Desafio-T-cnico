@@ -147,7 +147,7 @@ describeE2E('E2E · POST /webhook/violation → worker → GET /jobs/:id', () =>
     const enqueue = await request(app).post('/webhook/violation').send(validPayload);
     expect(enqueue.status).toBe(202);
     const jobId = enqueue.body.jobId as string;
-    expect(jobId).toBe('tenant_acme:ad_001');
+    expect(jobId).toBe('tenant_acme__ad_001');
 
     await waitForState(jobId, 'completed');
 
@@ -223,7 +223,7 @@ describeE2E('E2E · POST /webhook/violation → worker → GET /jobs/:id', () =>
   });
 
   it('GET /jobs/:id retorna 404 quando o job não existe', async () => {
-    const res = await request(app).get('/jobs/missing:job');
+    const res = await request(app).get('/jobs/missing__job');
     expect(res.status).toBe(404);
     expect(res.body.error).toBeDefined();
   });

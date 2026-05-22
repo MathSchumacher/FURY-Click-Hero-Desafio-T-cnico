@@ -81,7 +81,7 @@ describe('POST /webhook/violation', () => {
     const res = await request(app).post('/webhook/violation').send(validPayload);
     expect(res.status).toBe(202);
     expect(res.body).toMatchObject({
-      jobId: 'tenant_t:ad_42',
+      jobId: 'tenant_t__ad_42',
       status: 'queued',
       severity: 'HIGH',
     });
@@ -123,11 +123,11 @@ describe('POST /webhook/violation', () => {
 
   it('200 + deduplicated:true quando job já está in-flight (waiting)', async () => {
     const app = await buildApp();
-    seedInFlightJob('tenant_t:ad_42', 'waiting');
+    seedInFlightJob('tenant_t__ad_42', 'waiting');
     const res = await request(app).post('/webhook/violation').send(validPayload);
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
-      jobId: 'tenant_t:ad_42',
+      jobId: 'tenant_t__ad_42',
       deduplicated: true,
       status: 'waiting',
     });
@@ -135,7 +135,7 @@ describe('POST /webhook/violation', () => {
 
   it('200 + deduplicated:true quando job está active', async () => {
     const app = await buildApp();
-    seedInFlightJob('tenant_t:ad_42', 'active');
+    seedInFlightJob('tenant_t__ad_42', 'active');
     const res = await request(app).post('/webhook/violation').send(validPayload);
     expect(res.status).toBe(200);
     expect(res.body.deduplicated).toBe(true);
@@ -143,7 +143,7 @@ describe('POST /webhook/violation', () => {
 
   it('202 (novo job) quando job anterior está completed', async () => {
     const app = await buildApp();
-    seedInFlightJob('tenant_t:ad_42', 'completed');
+    seedInFlightJob('tenant_t__ad_42', 'completed');
     const res = await request(app).post('/webhook/violation').send(validPayload);
     expect(res.status).toBe(202);
     expect(res.body.status).toBe('queued');

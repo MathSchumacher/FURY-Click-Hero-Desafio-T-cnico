@@ -30,7 +30,9 @@ export function jobOptionsFor(severity: Severity): JobsOptions {
   }
 }
 
-/** Deterministic job id: blocks concurrent enqueues for the same (tenant, ad). */
+/** Deterministic job id: blocks concurrent enqueues for the same (tenant, ad).
+ *  Separator is `__` (not `:`) because BullMQ reserves `:` for its Redis key namespace
+ *  (`bull:<queue>:<jobId>`) and rejects custom ids containing it. */
 export function buildJobId(adId: string, tenantId: string): string {
-  return `${tenantId}:${adId}`;
+  return `${tenantId}__${adId}`;
 }

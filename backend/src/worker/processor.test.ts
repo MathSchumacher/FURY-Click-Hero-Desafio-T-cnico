@@ -33,7 +33,7 @@ function makeJob(overrides?: Partial<ViolationPayload>): Job<ViolationPayload, T
     ...overrides,
   };
   return {
-    id: 'tenant_x:ad_1',
+    id: 'tenant_x__ad_1',
     data,
     attemptsMade: 0,
     opts: { attempts: 3 },

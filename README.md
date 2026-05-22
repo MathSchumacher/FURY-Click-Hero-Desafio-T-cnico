@@ -53,12 +53,12 @@ curl -X POST http://localhost:3001/webhook/violation \
     "severity":      "CRITICAL",
     "detectedAt":    "2026-05-21T14:23:01Z"
   }'
-# → 202 Accepted { "jobId": "tenant_acme:ad_8f3k29", "status": "queued", ... }
+# → 202 Accepted { "jobId": "tenant_acme__ad_8f3k29", "status": "queued", ... }
 ```
 
 ```bash
 # 2️⃣  Consulta o status (depois de ~2 segundos)
-curl http://localhost:3001/jobs/tenant_acme:ad_8f3k29
+curl http://localhost:3001/jobs/tenant_acme__ad_8f3k29
 # → 200 { "jobId": "...", "status": "completed", "attempts": 1, "result": {...}, "error": null }
 ```
 
@@ -168,7 +168,7 @@ Schema é **`.strict()`** — campos extras viram `400` automaticamente.
 
 ```json
 {
-  "jobId":   "tenant_acme:ad_8f3k29",
+  "jobId":   "tenant_acme__ad_8f3k29",
   "status":  "completed",
   "attempts": 1,
   "result": {

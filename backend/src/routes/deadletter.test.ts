@@ -45,7 +45,7 @@ describe('GET /jobs/failed', () => {
 
   it('retorna jobs com shape { jobId, attempts, failedReason, data, timestamps }', async () => {
     fakeFailed.push({
-      id: 'tenant_a:ad_1',
+      id: 'tenant_a__ad_1',
       data: { adId: 'ad_1', tenantId: 'tenant_a', severity: 'CRITICAL' },
       attemptsMade: 3,
       failedReason: 'upstream HTTP 503',
@@ -57,7 +57,7 @@ describe('GET /jobs/failed', () => {
     const res = await request(app).get('/jobs/failed');
     expect(res.body.total).toBe(1);
     expect(res.body.jobs[0]).toMatchObject({
-      jobId: 'tenant_a:ad_1',
+      jobId: 'tenant_a__ad_1',
       attempts: 3,
       failedReason: 'upstream HTTP 503',
       data: { adId: 'ad_1', tenantId: 'tenant_a', severity: 'CRITICAL' },

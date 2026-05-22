@@ -6,7 +6,7 @@ describe('buildJobId — idempotency key', () => {
     const a = buildJobId('ad_42', 'tenant_xyz');
     const b = buildJobId('ad_42', 'tenant_xyz');
     expect(a).toBe(b);
-    expect(a).toBe('tenant_xyz:ad_42');
+    expect(a).toBe('tenant_xyz__ad_42');
   });
 
   it('produz ids distintos para tenants diferentes', () => {
