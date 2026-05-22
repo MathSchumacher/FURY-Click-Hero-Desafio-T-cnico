@@ -14,13 +14,29 @@ function url(path: string): string {
   return `${API_BASE}${path}`;
 }
 
+/** Lê valor do cookie `fury_csrf` (NÃO HttpOnly por design — JS precisa ler). */
+function readCsrfCookie(): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = /(?:^|;\s*)fury_csrf=([^;]+)/.exec(document.cookie);
+  return match?.[1] ?? null;
+}
+
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
 async function authed<T>(path: string, init: RequestInit = {}): Promise<T> {
+  /* Para métodos mutantes (POST/PATCH/DELETE/PUT) adicionamos o header
+     CSRF lido do cookie — o backend valida cookie == header (double-submit). */
+  const method = (init.method ?? 'GET').toUpperCase();
+  const needsCsrf = !SAFE_METHODS.has(method);
+  const csrfToken = needsCsrf ? readCsrfCookie() : null;
+
   const res = await fetch(url(path), {
     ...init,
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...(init.headers ?? {}),
+      ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
     },
   });
   const text = await res.text();

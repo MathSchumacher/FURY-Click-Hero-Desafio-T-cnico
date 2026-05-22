@@ -91,12 +91,22 @@ export async function register(
   return out;
 }
 
+function readCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = new RegExp(`(?:^|;\\s*)${name}=([^;]+)`).exec(document.cookie);
+  return match?.[1] ?? null;
+}
+
 export async function logout(): Promise<void> {
   /* Revoga server-side (jti em Redis deny list) e backend limpa o cookie.
-     Cookie auto-enviado pelo browser graças a credentials:'include'. */
+     Inclui CSRF token (double-submit) — sem ele o backend rejeita 403. */
   try {
-    const path = `${API_BASE}/auth/logout`;
-    await fetch(path, { method: 'POST', credentials: 'include' });
+    const csrf = readCookie('fury_csrf');
+    await fetch(`${API_BASE}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: csrf ? { 'X-CSRF-Token': csrf } : {},
+    });
   } catch {
     /* swallow — limpa local mesmo se server falhou */
   }

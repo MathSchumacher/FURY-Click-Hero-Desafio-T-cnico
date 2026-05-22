@@ -9,6 +9,7 @@ import { consumeOAuthState, issueOAuthState, type OAuthIntent } from '../auth/oa
 import { signToken, verifyToken, type AuthClaims } from '../auth/paseto.js';
 import { isRevoked, revokeToken } from '../auth/revocation.js';
 import { SESSION_COOKIE, clearSessionCookie, setSessionCookie } from '../auth/cookies.js';
+import { csrfProtection, issueCsrfToken, setCsrfCookie } from '../auth/csrf.js';
 import bcrypt from 'bcryptjs';
 import {
   consumeVerificationToken,
@@ -73,6 +74,7 @@ authRouter.post('/auth/register', authLimiter, async (req: Request, res: Respons
       req,
     });
     setSessionCookie(res, token);
+    setCsrfCookie(res, issueCsrfToken());
     return res
       .status(201)
       .json({ token, user: pub, tenant: { id: tenant.id, name: tenant.name, slug: tenant.slug } });
@@ -133,6 +135,7 @@ authRouter.post('/auth/login', authLimiter, async (req: Request, res: Response) 
     req,
   });
   setSessionCookie(res, token);
+  setCsrfCookie(res, issueCsrfToken());
   return res.json({ token, user: pub, tenant: { id: tenantId } });
 });
 
@@ -289,10 +292,10 @@ authRouter.get('/auth/google/callback', async (req: Request, res: Response) => {
     });
 
     setSessionCookie(res, token);
-    /* Mantém ?token=... no redirect durante transição — frontend usa
-       enquanto a migração pra cookies não completa. Quando concluir,
-       remover o query param (token só vive no cookie HttpOnly). */
-    res.redirect(`${env.FRONTEND_URL}/auth/callback?token=${encodeURIComponent(token)}`);
+    setCsrfCookie(res, issueCsrfToken());
+    /* Redirect pro frontend — cookies (session + csrf) já setados.
+       Removemos ?token=... do query string: token vive APENAS no cookie. */
+    res.redirect(`${env.FRONTEND_URL}/auth/callback`);
     return;
   } catch (err) {
     const e = err as Error;
@@ -450,6 +453,7 @@ authRouter.post('/auth/reset-password', authLimiter, async (req: Request, res: R
  */
 authRouter.post(
   '/auth/verify-email/request',
+  csrfProtection,
   requireAuth,
   async (req: AuthedRequest, res: Response) => {
     const claims = req.auth;
@@ -513,7 +517,7 @@ authRouter.post(
  * Revoga o token atual gravando o jti em Redis até o exp natural.
  * Idempotent — chamar repetidas vezes é OK.
  */
-authRouter.post('/auth/logout', requireAuth, async (req: AuthedRequest, res: Response) => {
+authRouter.post('/auth/logout', csrfProtection, requireAuth, async (req: AuthedRequest, res: Response) => {
   const claims = req.auth;
   if (!claims) {
     return res.status(401).json({ error: 'não autenticado' });
