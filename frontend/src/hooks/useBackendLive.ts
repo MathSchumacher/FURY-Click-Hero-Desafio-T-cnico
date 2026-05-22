@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  getHealth,
   getStats,
   getTenantMe,
   getViolations,
+  type HealthSnapshot,
   type TenantInfo,
   type TenantStats,
   type ViolationsPage,
@@ -111,6 +113,15 @@ export function useStats(intervalMs = DEFAULT_INTERVAL_MS): {
   refetch: () => void;
 } {
   return usePolling<TenantStats>(getStats, { intervalMs });
+}
+
+export function useHealth(intervalMs = 5000): {
+  data: HealthSnapshot | null;
+  loading: boolean;
+  error: Error | null;
+  refetch: () => void;
+} {
+  return usePolling<HealthSnapshot>(getHealth, { intervalMs });
 }
 
 export function useViolations(params: {

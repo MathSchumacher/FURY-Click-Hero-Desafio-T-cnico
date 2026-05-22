@@ -1,0 +1,82 @@
+/* ── Severity donut: distribuição de violations por nível ──── */
+
+.sev-donut {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+  padding: var(--sp-5);
+}
+
+.sev-donut__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--sp-4);
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.sev-donut__title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.sev-donut__body {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: var(--sp-4);
+  align-items: center;
+}
+@media (max-width: 460px) {
+  .sev-donut__body {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+}
+
+.sev-donut__svg {
+  width: 130px;
+  height: 130px;
+}
+
+.sev-donut__center-val {
+  font-family: var(--font-display);
+  font-size: 18px;
+  fill: var(--c-text);
+  font-weight: 600;
+}
+.sev-donut__center-lbl {
+  font-family: var(--font-mono);
+  font-size: 7px;
+  fill: var(--c-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.sev-donut__legend {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.sev-donut__legend-item {
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.88rem;
+}
+
+.sev-donut__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.sev-donut__count {
+  color: var(--c-text);
+  font-size: 0.85rem;
+}

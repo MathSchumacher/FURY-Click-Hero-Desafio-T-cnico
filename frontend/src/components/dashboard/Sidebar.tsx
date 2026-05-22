@@ -26,18 +26,25 @@ type NavItem = {
   icon: keyof typeof I;
   to: string;
   count?: number;
+  soon?: boolean;
 };
 
 const NAV_PRIMARY: NavItem[] = [
-  { id: 'overview',  label: 'Overview',    icon: 'home',   to: '/dashboard' },
-  { id: 'events',    label: 'Eventos',     icon: 'flame',  to: '/dashboard/events',   count: 12 },
-  { id: 'protection', label: 'Proteção',   icon: 'shield', to: '/dashboard/protection' },
-  { id: 'alerts',    label: 'Alertas',     icon: 'bell',   to: '/dashboard/alerts',   count: 3 },
+  { id: 'overview', label: 'Overview', icon: 'home', to: '/dashboard' },
+  { id: 'events', label: 'Eventos', icon: 'flame', to: '/dashboard/events', soon: true },
+  { id: 'protection', label: 'Proteção', icon: 'shield', to: '/dashboard/protection', soon: true },
+  { id: 'alerts', label: 'Alertas', icon: 'bell', to: '/dashboard/alerts', soon: true },
 ];
 
 const NAV_SECONDARY: NavItem[] = [
-  { id: 'integrations', label: 'Integrações', icon: 'link', to: '/dashboard/integrations' },
-  { id: 'team',         label: 'Equipe',     icon: 'team', to: '/dashboard/team' },
+  {
+    id: 'integrations',
+    label: 'Integrações',
+    icon: 'link',
+    to: '/dashboard/integrations',
+    soon: true,
+  },
+  { id: 'team', label: 'Equipe', icon: 'team', to: '/dashboard/team', soon: true },
 ];
 
 type Provider = { id: string; label: string; bg: string; mark: string };
@@ -73,6 +80,21 @@ export function Sidebar(): JSX.Element {
 
   function NavLink({ item }: { item: NavItem }): JSX.Element {
     const Icon = I[item.icon];
+    /* Itens "soon" não navegam — botão estilizado igual mas inativo. */
+    if (item.soon) {
+      return (
+        <button
+          type="button"
+          className="fury-side__item fury-side__item--soon"
+          title={collapsed ? `${item.label} (em breve)` : 'Em breve'}
+          aria-disabled="true"
+        >
+          <Icon className="fury-side__icon" />
+          <span className="fury-side__label">{item.label}</span>
+          <span className="fury-side__soon-pill">em breve</span>
+        </button>
+      );
+    }
     return (
       <Link
         to={item.to}
@@ -119,28 +141,29 @@ export function Sidebar(): JSX.Element {
         />
       </div>
 
-      {/* COMPOSE: primary CTA = connect new platform */}
+      {/* COMPOSE: CTA pra conectar plataforma — OAuth Meta/Google/TikTok ainda
+          não está implementado, então mostra como "em breve" pra ser honesto. */}
       <div className={`fury-side__compose-wrap ${collapsed ? 'is-collapsed' : ''}`}>
         <button
           type="button"
-          className={`fury-side__compose ${collapsed ? 'is-collapsed' : ''}`}
+          className={`fury-side__compose fury-side__compose--soon ${collapsed ? 'is-collapsed' : ''}`}
           onClick={() => setProviderMenu((v) => !v)}
           aria-expanded={providerMenu}
+          title="OAuth com Meta/Google/TikTok — em breve"
         >
           <I.plus className="fury-side__icon" />
           <span className="fury-side__compose-label">Conectar plataforma</span>
+          <span className="fury-side__soon-pill fury-side__soon-pill--compose">em breve</span>
         </button>
         {providerMenu && !collapsed && (
           <div className="fury-side__provider-menu" role="menu">
             {PROVIDERS.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                className="fury-side__provider"
-                role="menuitem"
-              >
-                <span className="fury-side__provider-mark" style={{ background: p.bg }}>{p.mark}</span>
+              <button key={p.id} type="button" className="fury-side__provider" role="menuitem">
+                <span className="fury-side__provider-mark" style={{ background: p.bg }}>
+                  {p.mark}
+                </span>
                 {p.label}
+                <span className="fury-side__soon-pill">em breve</span>
               </button>
             ))}
           </div>
@@ -167,10 +190,20 @@ export function Sidebar(): JSX.Element {
         </div>
 
         <div className="fury-side__footer-btns">
-          <button type="button" className="fury-side__icon-btn" title="Assistente FURY">
+          <button
+            type="button"
+            className="fury-side__icon-btn fury-side__icon-btn--soon"
+            title="Assistente FURY (em breve)"
+            aria-disabled="true"
+          >
             <I.bot className="fury-side__icon" />
           </button>
-          <button type="button" className="fury-side__icon-btn fury-side__icon-btn--optional" title="Configurações">
+          <button
+            type="button"
+            className="fury-side__icon-btn fury-side__icon-btn--optional fury-side__icon-btn--soon"
+            title="Configurações (em breve)"
+            aria-disabled="true"
+          >
             <I.settings className="fury-side__icon" />
           </button>
           <button

@@ -1,0 +1,122 @@
+/* ── Connections health: status real do backend ──────────── */
+
+.conn-health {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+  padding: var(--sp-5);
+}
+
+.conn-health__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-3);
+}
+
+.conn-health__title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.conn-health__pulse {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.conn-health__pulse.is-up {
+  background: #2bd279;
+  box-shadow: 0 0 0 4px rgba(43, 210, 121, 0.18);
+  animation: connPulse 1.6s ease-in-out infinite;
+}
+.conn-health__pulse.is-down {
+  background: #ff3d2e;
+  box-shadow: 0 0 0 4px rgba(255, 61, 46, 0.2);
+}
+@keyframes connPulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.25); }
+}
+
+.conn-health__error {
+  padding: var(--sp-3);
+  background: rgba(255, 61, 46, 0.08);
+  border: 1px solid rgba(255, 61, 46, 0.25);
+  border-radius: var(--r-md);
+  color: #ff8a7a;
+  font-size: 0.86rem;
+}
+
+.conn-health__skeleton {
+  padding: var(--sp-4);
+  text-align: center;
+  font-size: 0.88rem;
+}
+
+.conn-health__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.conn-health__item {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  gap: var(--sp-3);
+  align-items: center;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+}
+
+.conn-health__mark {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: white;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.conn-health__info {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.conn-health__name {
+  font-size: 0.9rem;
+}
+
+.conn-health__meta {
+  font-size: 0.74rem;
+  color: var(--c-text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conn-health__status {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+}
+.conn-health__status.is-on {
+  background: rgba(43, 210, 121, 0.12);
+  border: 1px solid rgba(43, 210, 121, 0.35);
+  color: #6fe2a4;
+}
+.conn-health__status.is-off {
+  background: rgba(255, 61, 46, 0.12);
+  border: 1px solid rgba(255, 61, 46, 0.35);
+  color: #ff8a7a;
+}

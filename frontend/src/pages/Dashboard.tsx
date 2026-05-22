@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Sidebar } from '../components/dashboard/Sidebar';
 import { SimulateViolationPanel } from '../components/dashboard/SimulateViolationPanel';
 import { RecentViolationsPanel } from '../components/dashboard/RecentViolationsPanel';
-import { LiveDashboard } from '../components/sections/LiveDashboard';
+import { SeverityDonut } from '../components/dashboard/SeverityDonut';
+import { ConnectionsHealth } from '../components/dashboard/ConnectionsHealth';
 import { useAuth } from '../hooks/useAuth';
 import { useStats } from '../hooks/useBackendLive';
 
@@ -118,64 +119,9 @@ export default function DashboardPage(): JSX.Element {
           <RecentViolationsPanel />
         </section>
 
-        <section className="dash-live">
-          <LiveDashboard />
-        </section>
-
         <section className="dash-side-grid">
-          <article className="dash-card">
-            <header className="dash-card__head">
-              <h3 className="dash-card__title">Conexões ativas</h3>
-              <span className="mono dim">3 plataformas</span>
-            </header>
-            <ul className="dash-conn">
-              <li className="dash-conn__item">
-                <span className="dash-conn__mark" style={{ background: '#0064E0' }}>M</span>
-                <div className="dash-conn__info">
-                  <div className="dash-conn__name">Meta Ads</div>
-                  <div className="dash-conn__meta mono">47 campanhas · 12 ad sets</div>
-                </div>
-                <span className="dash-conn__status is-on">online</span>
-              </li>
-              <li className="dash-conn__item">
-                <span className="dash-conn__mark" style={{ background: '#4285F4' }}>G</span>
-                <div className="dash-conn__info">
-                  <div className="dash-conn__name">Google Ads</div>
-                  <div className="dash-conn__meta mono">22 campanhas · 8 grupos</div>
-                </div>
-                <span className="dash-conn__status is-on">online</span>
-              </li>
-              <li className="dash-conn__item">
-                <span className="dash-conn__mark" style={{ background: '#000' }}>T</span>
-                <div className="dash-conn__info">
-                  <div className="dash-conn__name">TikTok Ads</div>
-                  <div className="dash-conn__meta mono">14 campanhas · 6 grupos</div>
-                </div>
-                <span className="dash-conn__status is-on">online</span>
-              </li>
-            </ul>
-          </article>
-
-          <article className="dash-card">
-            <header className="dash-card__head">
-              <h3 className="dash-card__title">Próximas ações sugeridas</h3>
-              <span className="mono dim">FURY recomenda</span>
-            </header>
-            <ul className="dash-todo">
-              <li className="dash-todo__item">
-                <span className="dash-todo__bullet" style={{ background: '#ff7a18' }} />
-                <span>Revisar criativos da campanha "Black Friday" — 3 alertas de brand safety</span>
-              </li>
-              <li className="dash-todo__item">
-                <span className="dash-todo__bullet" style={{ background: '#f5b942' }} />
-                <span>Aumentar threshold de severidade em "Promoção Verão" (muito sensível)</span>
-              </li>
-              <li className="dash-todo__item">
-                <span className="dash-todo__bullet" style={{ background: '#2bd279' }} />
-                <span>Conectar conta do TikTok Business secundária</span>
-              </li>
-            </ul>
-          </article>
+          <SeverityDonut />
+          <ConnectionsHealth />
         </section>
       </main>
     </div>

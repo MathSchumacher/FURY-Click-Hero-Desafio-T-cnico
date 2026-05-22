@@ -122,6 +122,40 @@ export async function getJob(jobId: string): Promise<JobStatus> {
   return body as JobStatus;
 }
 
+/* ── Health (público, sem token) ─────────────────────────────── */
+
+export type HealthSnapshot = {
+  ok: boolean;
+  redis: 'up' | 'down';
+  queue: {
+    name: string;
+    counts: {
+      active: number;
+      completed: number;
+      delayed: number;
+      failed: number;
+      paused: number;
+      prioritized: number;
+      waiting: number;
+      'waiting-children': number;
+    };
+  };
+  uptimeSeconds: number;
+  checkDurationMs: number;
+  timestamp: string;
+};
+
+export async function getHealth(): Promise<HealthSnapshot> {
+  const res = await fetch(url('/health'));
+  const text = await res.text();
+  const body: unknown = text ? JSON.parse(text) : null;
+  if (!res.ok && res.status !== 503) {
+    const errBody = body as { error?: string } | null;
+    throw new Error(errBody?.error ?? `HTTP ${res.status}`);
+  }
+  return body as HealthSnapshot;
+}
+
 /* ── Webhook (Simulate Violation form do dashboard) ──────────── */
 
 export type SimulateViolationPayload = {
