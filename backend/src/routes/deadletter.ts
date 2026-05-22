@@ -1,6 +1,7 @@
-import { Router, type Request, type Response } from 'express';
+import { Router, type Response } from 'express';
 import { z } from 'zod';
-import { violationQueue } from '../queue/violationQueue.js';
+import { prisma } from '../lib/prisma.js';
+import { requireAuth, type AuthedRequest } from './auth.js';
 
 export const deadLetterRouter: Router = Router();
 
@@ -11,18 +12,23 @@ const querySchema = z.object({
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 
-function toIso(ms: number | undefined | null): string | null {
-  if (!ms || !Number.isFinite(ms)) return null;
-  return new Date(ms).toISOString();
-}
-
 /**
- * GET /jobs/failed?limit=N — lists jobs that exhausted retries.
+ * GET /jobs/failed?limit=N — lista violations que esgotaram retries.
  *
- * Triage tool: lets an operator see *what* is failing and *why* without
- * touching Redis directly. Default 50 last jobs, hard cap 200.
+ *   401 → sem auth
+ *   400 → query inválida
+ *   200 → { total, jobs: [...] } escopado ao tenant do user logado
+ *
+ * Lê da tabela Violation (status=FAILED) em vez do BullMQ queue, pra
+ * filtrar nativamente por tenantId. O queue global continha jobs de
+ * todos tenants — vazamento cross-tenant de stack traces.
  */
-deadLetterRouter.get('/jobs/failed', async (req: Request, res: Response) => {
+deadLetterRouter.get('/jobs/failed', requireAuth, async (req: AuthedRequest, res: Response) => {
+  const claims = req.auth;
+  if (!claims) {
+    return res.status(401).json({ error: 'não autenticado' });
+  }
+
   const parsed = querySchema.safeParse(req.query);
   if (!parsed.success) {
     return res.status(400).json({
@@ -32,15 +38,21 @@ deadLetterRouter.get('/jobs/failed', async (req: Request, res: Response) => {
   }
   const limit = Math.min(parsed.data.limit ?? DEFAULT_LIMIT, MAX_LIMIT);
 
-  const rawJobs = await violationQueue.getJobs(['failed'], 0, limit - 1);
-  const jobs = rawJobs.map((j) => ({
-    jobId: String(j.id),
-    attempts: j.attemptsMade,
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    failedReason: j.failedReason ?? null,
-    data: j.data,
-    queuedAt: toIso(j.timestamp),
-    failedAt: toIso(j.finishedOn),
+  const rows = await prisma.violation.findMany({
+    where: { tenantId: claims.tenantId, status: 'FAILED' },
+    orderBy: { finishedAt: 'desc' },
+    take: limit,
+  });
+
+  const jobs = rows.map((v) => ({
+    jobId: v.jobId,
+    adId: v.adId,
+    severity: v.severity,
+    violationType: v.violationType,
+    attempts: v.attempts,
+    error: v.errorMessage,
+    createdAt: v.createdAt.toISOString(),
+    finishedAt: v.finishedAt?.toISOString() ?? null,
   }));
 
   return res.json({ total: jobs.length, jobs });

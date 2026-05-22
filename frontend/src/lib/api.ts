@@ -111,15 +111,9 @@ export type JobStatus = {
   error: string | null;
 };
 
-export async function getJob(jobId: string): Promise<JobStatus> {
-  const res = await fetch(url(`/jobs/${jobId}`));
-  const text = await res.text();
-  const body: unknown = text ? JSON.parse(text) : null;
-  if (!res.ok) {
-    const errBody = body as { error?: string } | null;
-    throw new Error(errBody?.error ?? `HTTP ${res.status}`);
-  }
-  return body as JobStatus;
+export function getJob(jobId: string): Promise<JobStatus> {
+  /* /jobs/:id agora exige auth + tenant scope — usa o helper authed() */
+  return authed<JobStatus>(`/jobs/${jobId}`);
 }
 
 /* ── Health (público, sem token) ─────────────────────────────── */

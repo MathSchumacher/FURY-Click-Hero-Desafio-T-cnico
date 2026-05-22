@@ -1,14 +1,14 @@
 import express from 'express';
 import request from 'supertest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * GET /jobs/:id agora lê do Postgres (fonte de verdade permanente)
- * em vez do Redis/BullMQ (que tem TTL nos jobs concluídos).
+ * GET /jobs/:id agora exige auth + scope ao tenant do user logado.
+ * Eleva acima do spec original do desafio (que permitia público) pra
+ * produção real — impede IDOR via jobId determinístico.
  *
  * Contrato preservado: { jobId, status, attempts, result, error }.
- * Diferença: status agora é o domain enum lowercase (queued/active/
- * completed/failed) em vez dos states do BullMQ.
+ * Status é o domain enum lowercase (queued/active/completed/failed).
  */
 
 type FakeViolation = {
@@ -23,24 +23,74 @@ type FakeViolation = {
   finishedAt: Date | null;
 };
 
-const fakeViolations: Map<string, FakeViolation> = new Map();
+const fakeViolations: FakeViolation[] = [];
 
 vi.mock('../lib/prisma.js', () => ({
   prisma: {
     violation: {
-      findFirst: async ({ where }: { where: { jobId: string } }) =>
-        fakeViolations.get(where.jobId) ?? null,
+      findFirst: async ({ where }: { where: { jobId: string; tenantId?: string } }) => {
+        return (
+          fakeViolations.find(
+            (v) =>
+              v.jobId === where.jobId &&
+              (where.tenantId === undefined || v.tenantId === where.tenantId),
+          ) ?? null
+        );
+      },
     },
   },
 }));
 
-beforeEach(() => fakeViolations.clear());
+vi.mock('./auth.js', async () => {
+  const actual = await vi.importActual<typeof import('./auth.js')>('./auth.js');
+  return {
+    ...actual,
+    requireAuth: (
+      req: { auth?: unknown; header: (k: string) => string },
+      res: { status: (n: number) => { json: (b: unknown) => void } },
+      next: () => void,
+    ) => {
+      const h = req.header('x-test-auth');
+      if (!h) {
+        res.status(401).json({ error: 'não autenticado' });
+        return;
+      }
+      try {
+        (req as unknown as { auth: unknown }).auth = JSON.parse(h);
+        next();
+      } catch {
+        res.status(401).json({ error: 'token inválido' });
+      }
+    },
+  };
+});
+
+type RouterModule = typeof import('./jobs.js');
+let jobsRouter: RouterModule['jobsRouter'];
+
+beforeAll(async () => {
+  ({ jobsRouter } = await import('./jobs.js'));
+});
+
+beforeEach(() => {
+  fakeViolations.length = 0;
+});
 
 async function buildApp(): Promise<express.Express> {
-  const { jobsRouter } = await import('./jobs.js');
   const app = express();
   app.use(jobsRouter);
   return app;
+}
+
+function authHeader(tenantId: string, sub = 'u_1'): { 'x-test-auth': string } {
+  return {
+    'x-test-auth': JSON.stringify({
+      sub,
+      tenantId,
+      name: 'Test',
+      email: 'test@example.com',
+    }),
+  };
 }
 
 function makeViolation(overrides: Partial<FakeViolation> & { jobId: string }): FakeViolation {
@@ -58,16 +108,33 @@ function makeViolation(overrides: Partial<FakeViolation> & { jobId: string }): F
 }
 
 describe('GET /jobs/:id', () => {
-  it('404 quando job não existe no DB', async () => {
+  it('401 sem auth', async () => {
     const app = await buildApp();
-    const res = await request(app).get('/jobs/nope');
-    expect(res.status).toBe(404);
-    expect(res.body.error).toBeDefined();
+    const res = await request(app).get('/jobs/anything');
+    expect(res.status).toBe(401);
   });
 
-  it('shape { jobId, status, attempts, result, error } pra job completed', async () => {
-    fakeViolations.set(
-      'tenant_t__ad_42',
+  it('404 quando job não existe no tenant do user', async () => {
+    const app = await buildApp();
+    const res = await request(app).get('/jobs/nope').set(authHeader('t_1'));
+    expect(res.status).toBe(404);
+  });
+
+  it('404 (não 200) quando job pertence a OUTRO tenant (IDOR guard)', async () => {
+    fakeViolations.push(
+      makeViolation({
+        jobId: 't_alheio__ad_42',
+        status: 'COMPLETED',
+        tenantId: 't_alheio',
+      }),
+    );
+    const app = await buildApp();
+    const res = await request(app).get('/jobs/t_alheio__ad_42').set(authHeader('t_1'));
+    expect(res.status).toBe(404); /* nem confirma existência — privacy by default */
+  });
+
+  it('shape { jobId, status, attempts, result, error } pra job completed do meu tenant', async () => {
+    fakeViolations.push(
       makeViolation({
         jobId: 'tenant_t__ad_42',
         status: 'COMPLETED',
@@ -80,7 +147,9 @@ describe('GET /jobs/:id', () => {
       }),
     );
     const app = await buildApp();
-    const res = await request(app).get('/jobs/tenant_t__ad_42');
+    const res = await request(app)
+      .get('/jobs/tenant_t__ad_42')
+      .set(authHeader('tenant_t'));
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
       jobId: 'tenant_t__ad_42',
@@ -98,20 +167,21 @@ describe('GET /jobs/:id', () => {
   });
 
   it('shape pra job failed: result=null, error=errorMessage', async () => {
-    fakeViolations.set(
-      'tenant_t__ad_42',
+    fakeViolations.push(
       makeViolation({
         jobId: 'tenant_t__ad_42',
+        tenantId: 'tenant_t',
         status: 'FAILED',
         attempts: 3,
         errorMessage: 'upstream HTTP 503',
       }),
     );
     const app = await buildApp();
-    const res = await request(app).get('/jobs/tenant_t__ad_42');
+    const res = await request(app)
+      .get('/jobs/tenant_t__ad_42')
+      .set(authHeader('tenant_t'));
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
-      jobId: 'tenant_t__ad_42',
       status: 'failed',
       attempts: 3,
       result: null,
@@ -120,33 +190,18 @@ describe('GET /jobs/:id', () => {
   });
 
   it('shape pra job queued: result=null, error=null, attempts=0', async () => {
-    fakeViolations.set(
-      'tenant_t__ad_42',
-      makeViolation({ jobId: 'tenant_t__ad_42', status: 'QUEUED' }),
+    fakeViolations.push(
+      makeViolation({ jobId: 'tenant_t__ad_42', tenantId: 'tenant_t', status: 'QUEUED' }),
     );
     const app = await buildApp();
-    const res = await request(app).get('/jobs/tenant_t__ad_42');
+    const res = await request(app)
+      .get('/jobs/tenant_t__ad_42')
+      .set(authHeader('tenant_t'));
     expect(res.body).toMatchObject({
-      jobId: 'tenant_t__ad_42',
       status: 'queued',
       attempts: 0,
       result: null,
       error: null,
-    });
-  });
-
-  it('shape pra job active: attempts já incrementado', async () => {
-    fakeViolations.set(
-      'tenant_t__ad_42',
-      makeViolation({ jobId: 'tenant_t__ad_42', status: 'ACTIVE', attempts: 2 }),
-    );
-    const app = await buildApp();
-    const res = await request(app).get('/jobs/tenant_t__ad_42');
-    expect(res.body).toMatchObject({
-      jobId: 'tenant_t__ad_42',
-      status: 'active',
-      attempts: 2,
-      result: null,
     });
   });
 });

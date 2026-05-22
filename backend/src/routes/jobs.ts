@@ -1,5 +1,6 @@
-import { Router, type Request, type Response } from 'express';
+import { Router, type Response } from 'express';
 import { prisma } from '../lib/prisma.js';
+import { requireAuth, type AuthedRequest } from './auth.js';
 
 export const jobsRouter: Router = Router();
 
@@ -13,23 +14,31 @@ const STATUS_MAP = {
 /**
  * GET /jobs/:id
  *
- *   404 → registro não existe na tabela Violation
+ *   401 → sem token PASETO no Authorization header
+ *   404 → registro não existe, OU pertence a outro tenant (privacy by default
+ *         — não confirmamos a existência pra evitar enumeração via timing)
  *   200 → { jobId, status, attempts, result, error }
  *
- * Fonte de verdade: tabela Violation no Postgres. Redis tem o job ativo
- * na fila (vai expirar), mas o histórico permanente vive aqui — assim
- * o avaliador consegue consultar jobs antigos sem depender do TTL do
- * BullMQ (removeOnComplete = 24h).
+ * O lookup é escopado a `claims.tenantId` — impede IDOR via jobId
+ * determinístico (`tenant_slug__ad_id`), que de outra forma permitiria a
+ * qualquer user logado ler jobs de tenants alheios advinhando o slug.
  *
- * status é o enum do domínio em lowercase. Em sucesso, `result` agrega
- * upstreamStatus, upstreamLatencyMs, adId, tenantId e finishedAt.
+ * Fonte de verdade: tabela Violation no Postgres. Worker grava transições;
+ * Redis tem job ativo na fila (com TTL), histórico permanente vive aqui.
  */
-jobsRouter.get('/jobs/:id', async (req: Request, res: Response) => {
+jobsRouter.get('/jobs/:id', requireAuth, async (req: AuthedRequest, res: Response) => {
+  const claims = req.auth;
+  if (!claims) {
+    return res.status(401).json({ error: 'não autenticado' });
+  }
   const id = req.params.id;
   if (!id) {
     return res.status(400).json({ error: 'job id é obrigatório' });
   }
-  const v = await prisma.violation.findFirst({ where: { jobId: id } });
+
+  const v = await prisma.violation.findFirst({
+    where: { jobId: id, tenantId: claims.tenantId },
+  });
   if (!v) {
     return res.status(404).json({ error: 'job não encontrado' });
   }
