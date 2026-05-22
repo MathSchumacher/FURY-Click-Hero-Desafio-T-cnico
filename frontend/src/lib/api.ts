@@ -6,10 +6,12 @@
  * já tem `credentials: true`.
  */
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
+/* Mesma estratégia do lib/auth.ts: sempre `/api/*`. Em dev = Vite proxy.
+   Em prod = Netlify rewrite pro Render. Cookies HttpOnly first-party. */
+const API_BASE = '/api';
 
 function url(path: string): string {
-  return API_BASE ? `${API_BASE}${path}` : `/api${path}`;
+  return `${API_BASE}${path}`;
 }
 
 async function authed<T>(path: string, init: RequestInit = {}): Promise<T> {

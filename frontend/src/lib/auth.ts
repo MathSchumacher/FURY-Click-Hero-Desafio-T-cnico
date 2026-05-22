@@ -26,11 +26,13 @@ type AuthResponse = {
   user: AuthUser;
 };
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
+/* Sempre `/api/*` — em dev o proxy do Vite redireciona pra localhost:3001;
+   em prod o Netlify rewrite manda pro Render. Resultado: cookies HttpOnly
+   sempre first-party de Netlify, sem third-party blocking de browsers. */
+const API_BASE = '/api';
 
 export function getGoogleSignInUrl(intent: 'login' | 'register'): string {
-  const base = API_BASE ? `${API_BASE}/auth/google` : '/api/auth/google';
-  return `${base}?intent=${intent}`;
+  return `${API_BASE}/auth/google?intent=${intent}`;
 }
 
 /** Guarda apenas o user em cache local. Token vai pro cookie HttpOnly via backend. */
@@ -44,7 +46,7 @@ export function setSession(user: AuthUser): void {
 
 /** Busca o user atual via /auth/me. Browser envia cookie automaticamente. */
 export async function fetchMe(): Promise<AuthUser> {
-  const url = API_BASE ? `${API_BASE}/auth/me` : '/api/auth/me';
+  const url = `${API_BASE}/auth/me`;
   const res = await fetch(url, { credentials: 'include' });
   if (!res.ok) {
     throw new Error(`HTTP ${res.status} ao buscar /auth/me`);
@@ -53,7 +55,7 @@ export async function fetchMe(): Promise<AuthUser> {
 }
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const url = API_BASE ? `${API_BASE}${path}` : `/api${path}`;
+  const url = `${API_BASE}${path}`;
   const res = await fetch(url, {
     method: 'POST',
     credentials: 'include',
@@ -93,7 +95,7 @@ export async function logout(): Promise<void> {
   /* Revoga server-side (jti em Redis deny list) e backend limpa o cookie.
      Cookie auto-enviado pelo browser graças a credentials:'include'. */
   try {
-    const path = API_BASE ? `${API_BASE}/auth/logout` : '/api/auth/logout';
+    const path = `${API_BASE}/auth/logout`;
     await fetch(path, { method: 'POST', credentials: 'include' });
   } catch {
     /* swallow — limpa local mesmo se server falhou */

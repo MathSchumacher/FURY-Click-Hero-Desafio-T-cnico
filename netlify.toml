@@ -9,8 +9,19 @@
 [build.environment]
   NODE_VERSION = "20"
 
-# SPA fallback — qualquer rota desconhecida serve o index.html pro React Router
-# (também já existe em frontend/public/_redirects; deixar nos dois é seguro).
+# Proxy /api/* → Render (PRECISA vir ANTES do SPA fallback). Faz com que o
+# backend pareça same-origin pro browser — cookies setados pelo Render
+# (Set-Cookie passa pelo proxy) viram first-party de Netlify e são enviados
+# de volta em requests subsequentes. Sem isso, third-party cookie policy
+# dos browsers (Safari ITP, Chrome PSP) bloqueia a sessão.
+[[redirects]]
+  from   = "/api/*"
+  to     = "https://fury-click-hero-desafio-t-cnico.onrender.com/:splat"
+  status = 200
+  force  = true
+
+# SPA fallback — qualquer rota desconhecida serve o index.html pro React Router.
+# Vem DEPOIS do /api/* porque Netlify aplica a primeira regra que casa.
 [[redirects]]
   from   = "/*"
   to     = "/index.html"

@@ -1,1 +1,5 @@
-/*    /index.html   200
+# Proxy /api/* pro backend no Render (cookies viram first-party de Netlify)
+/api/*  https://fury-click-hero-desafio-t-cnico.onrender.com/:splat  200!
+
+# SPA fallback do React Router
+/*      /index.html                                                   200
