@@ -20,6 +20,7 @@ export type AuthUser = {
 export type AuthError = {
   field?: 'name' | 'email' | 'password' | '_';
   message: string;
+  requestId?: string;
 };
 
 type AuthResponse = {
@@ -54,22 +55,65 @@ export async function fetchMe(): Promise<AuthUser> {
   return (await res.json()) as AuthUser;
 }
 
+/**
+ * Mapeia status codes pra mensagens amigáveis quando o backend não
+ * conseguiu enviar um corpo útil (ex: timeout no proxy do Netlify).
+ */
+function fallbackErrorMessage(status: number): string {
+  switch (status) {
+    case 504:
+      return 'O servidor está aquecendo (Render free tier hiberna). Aguarde ~30s e tente novamente.';
+    case 503:
+      return 'Serviço indisponível no momento. Tente novamente em alguns segundos.';
+    case 502:
+      return 'O backend não respondeu. Verifique sua conexão e tente novamente.';
+    case 0:
+      return 'Sem conexão com o servidor. Verifique a internet ou tente em janela anônima.';
+    default:
+      return `Erro inesperado (HTTP ${status}).`;
+  }
+}
+
 async function postJson<T>(path: string, body: unknown): Promise<T> {
   const url = `${API_BASE}${path}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (netErr) {
+    /* Falha de rede (CORS, DNS, offline). Log + mensagem clara. */
+    console.error('[fury][network]', { url, error: netErr });
+    const err = new Error(fallbackErrorMessage(0)) as Error & AuthError;
+    err.field = '_';
+    throw err;
+  }
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
-    const message =
-      typeof data['error'] === 'string' ? (data['error'] as string) : `HTTP ${res.status}`;
+    const backendMessage = typeof data['error'] === 'string' ? (data['error'] as string) : null;
+    const message = backendMessage ?? fallbackErrorMessage(res.status);
     const field = typeof data['field'] === 'string' ? (data['field'] as AuthError['field']) : '_';
-    const err = new Error(message) as Error & AuthError;
+    const requestId =
+      typeof data['requestId'] === 'string' ? (data['requestId'] as string) : null;
+    const details =
+      typeof data['details'] === 'string' ? (data['details'] as string) : null;
+    /* console.error com contexto completo — fica visível em DevTools sem
+       precisar do dashboard do Render. */
+    console.error('[fury][http]', {
+      url,
+      status: res.status,
+      backendMessage,
+      requestId,
+      details,
+      body: data,
+    });
+    const err = new Error(message) as Error & AuthError & { requestId?: string };
     err.message = message;
     err.field = field;
+    if (requestId) err.requestId = requestId;
     throw err;
   }
   return data as T;

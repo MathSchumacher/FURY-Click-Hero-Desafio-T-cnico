@@ -58,10 +58,12 @@
       href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap"
     />
 
-    <!-- Preload critical above-the-fold assets -->
+    <!-- Preload critical above-the-fold assets. NÃO preloadar o modelo 3D
+         aqui — ele só é usado em seções abaixo do fold (R3F lazy-loaded) e
+         o preload gerava warning do Chrome "preloaded but not used within
+         a few seconds". O dynamic import do R3F já cuida do load on-demand. -->
     <link rel="preload" as="video" href="/background1dark.loop.mp4" type="video/mp4" />
     <link rel="preload" as="image" href="/icon.webp" type="image/webp" />
-    <link rel="preload" as="fetch" href="/3Dicon.optimized.glb" type="model/gltf-binary" crossorigin />
 
     <!-- JSON-LD: SoftwareApplication schema -->
     <script type="application/ld+json">

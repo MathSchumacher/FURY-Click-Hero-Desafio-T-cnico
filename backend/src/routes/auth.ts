@@ -80,17 +80,22 @@ authRouter.post('/auth/register', authLimiter, async (req: Request, res: Respons
       .json({ token, user: pub, tenant: { id: tenant.id, name: tenant.name, slug: tenant.slug } });
   } catch (err) {
     const e = err as Error & { status?: number; field?: string; code?: string };
-    /* Log estruturado pro Render → diagnosticar 500 inesperados.
-       Prisma errors trazem `code` (P2002, P2025, etc) — útil pra forense. */
-    if (!e.status || e.status >= 500) {
+    const isInternal = !e.status || e.status >= 500;
+    if (isInternal) {
       logger.error(
         { err: e.message, code: e.code, stack: e.stack, email: email.toLowerCase() },
         'auth:register:failed',
       );
     }
+    /* Resposta de erro: em prod, mensagem genérica + requestId pra
+       correlacionar com o log estruturado. Em dev, expõe `details`
+       (err.message + Prisma code) pra debug rápido. */
+    const isDev = env.NODE_ENV !== 'production';
     return res.status(e.status ?? 500).json({
       error: e.status ? e.message : 'Erro ao criar conta. Tente novamente em alguns segundos.',
       field: e.field ?? '_',
+      requestId: req.id,
+      ...(isInternal && isDev ? { details: e.message, code: e.code } : {}),
     });
   }
 });

@@ -30,12 +30,14 @@ export default function RegisterPage(): JSX.Element {
   const [accept, setAccept] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [requestId, setRequestId] = useState<string | null>(null);
 
   const strength = useMemo(() => scorePassword(password), [password]);
 
   async function onSubmit(e: FormEvent): Promise<void> {
     e.preventDefault();
     setError(null);
+    setRequestId(null);
     if (!accept) {
       setError('Você precisa aceitar os termos para continuar.');
       return;
@@ -46,6 +48,8 @@ export default function RegisterPage(): JSX.Element {
       nav('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro inesperado');
+      const rid = (err as { requestId?: string }).requestId;
+      if (typeof rid === 'string') setRequestId(rid);
     } finally {
       setLoading(false);
     }
@@ -142,7 +146,14 @@ export default function RegisterPage(): JSX.Element {
               <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.4"/>
               <path d="M8 4v5M8 11v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
             </svg>
-            {error}
+            <div>
+              {error}
+              {requestId && (
+                <div className="mono" style={{ fontSize: '0.72rem', opacity: 0.7, marginTop: 4 }}>
+                  req: {requestId}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

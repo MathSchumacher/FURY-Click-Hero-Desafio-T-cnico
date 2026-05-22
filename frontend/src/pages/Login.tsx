@@ -11,10 +11,12 @@ export default function LoginPage(): JSX.Element {
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [requestId, setRequestId] = useState<string | null>(null);
 
   async function onSubmit(e: FormEvent): Promise<void> {
     e.preventDefault();
     setError(null);
+    setRequestId(null);
     setLoading(true);
     try {
       await login(email.trim(), password);
@@ -22,6 +24,8 @@ export default function LoginPage(): JSX.Element {
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro inesperado';
       setError(msg);
+      const rid = (err as { requestId?: string }).requestId;
+      if (typeof rid === 'string') setRequestId(rid);
     } finally {
       setLoading(false);
     }
@@ -91,7 +95,14 @@ export default function LoginPage(): JSX.Element {
               <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.4"/>
               <path d="M8 4v5M8 11v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
             </svg>
-            {error}
+            <div>
+              {error}
+              {requestId && (
+                <div className="mono" style={{ fontSize: '0.72rem', opacity: 0.7, marginTop: 4 }}>
+                  req: {requestId}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

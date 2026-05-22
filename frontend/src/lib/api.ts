@@ -23,27 +23,57 @@ function readCsrfCookie(): string | null {
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+function fallbackMessage(status: number): string {
+  switch (status) {
+    case 504:
+      return 'O servidor está aquecendo (Render free tier). Aguarde ~30s e tente novamente.';
+    case 503:
+      return 'Serviço indisponível no momento.';
+    case 502:
+      return 'Backend não respondeu.';
+    default:
+      return `HTTP ${status}`;
+  }
+}
+
 async function authed<T>(path: string, init: RequestInit = {}): Promise<T> {
   /* Para métodos mutantes (POST/PATCH/DELETE/PUT) adicionamos o header
      CSRF lido do cookie — o backend valida cookie == header (double-submit). */
   const method = (init.method ?? 'GET').toUpperCase();
   const needsCsrf = !SAFE_METHODS.has(method);
   const csrfToken = needsCsrf ? readCsrfCookie() : null;
+  const fullUrl = url(path);
 
-  const res = await fetch(url(path), {
-    ...init,
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init.headers ?? {}),
-      ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(fullUrl, {
+      ...init,
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(init.headers ?? {}),
+        ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+      },
+    });
+  } catch (netErr) {
+    console.error('[fury][network]', { url: fullUrl, method, error: netErr });
+    throw new Error('Sem conexão com o servidor.');
+  }
   const text = await res.text();
   const body: unknown = text ? JSON.parse(text) : null;
   if (!res.ok) {
-    const errBody = body as { error?: string } | null;
-    throw new Error(errBody?.error ?? `HTTP ${res.status}`);
+    const errBody = body as { error?: string; requestId?: string; details?: string } | null;
+    const msg = errBody?.error ?? fallbackMessage(res.status);
+    console.error('[fury][http]', {
+      url: fullUrl,
+      method,
+      status: res.status,
+      message: errBody?.error,
+      requestId: errBody?.requestId,
+      details: errBody?.details,
+      body: errBody,
+    });
+    throw new Error(msg);
   }
   return body as T;
 }
