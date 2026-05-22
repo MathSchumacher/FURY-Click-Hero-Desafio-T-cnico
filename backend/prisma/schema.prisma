@@ -161,3 +161,47 @@ model TenantSettings {
   updatedAt     DateTime @updatedAt
   tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Audit log — ações sensíveis registradas pra compliance + forense.
+// Append-only por design; sem update/delete em prod (políticas via DB).
+// ─────────────────────────────────────────────────────────────────
+
+enum AuditAction {
+  USER_REGISTER
+  USER_LOGIN_SUCCESS
+  USER_LOGIN_FAIL
+  USER_LOGOUT
+  USER_PASSWORD_CHANGE
+  USER_PASSWORD_RESET_REQUEST
+  USER_PASSWORD_RESET_COMPLETE
+  USER_EMAIL_VERIFY_REQUEST
+  USER_EMAIL_VERIFY_COMPLETE
+  USER_GOOGLE_LINK
+  USER_GOOGLE_SIGNUP
+  TENANT_CREATE
+  TENANT_SETTINGS_UPDATE
+  MEMBERSHIP_INVITE
+  MEMBERSHIP_REMOVE
+  MEMBERSHIP_ROLE_CHANGE
+  INTEGRATION_CONNECT
+  INTEGRATION_DISCONNECT
+  WEBHOOK_SECRET_ROTATE
+}
+
+model AuditEvent {
+  id        String      @id @default(cuid())
+  action    AuditAction
+  userId    String? // null quando ação anônima (login fail, register attempt)
+  tenantId  String? // escopado quando aplicável
+  /* contexto adicional: { targetUserId, oldRole, newRole, email, ... }
+     NUNCA gravar password/token raw aqui; só metadados não-sensíveis. */
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime    @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([action, createdAt(sort: Desc)])
+}

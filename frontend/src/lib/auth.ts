@@ -87,11 +87,29 @@ export async function register(name: string, email: string, password: string): P
   return out;
 }
 
-export function logout(): void {
+export async function logout(): Promise<void> {
+  /* Revoga server-side primeiro pra invalidar o token em todos os
+     dispositivos (já que jti vai pro Redis deny list). Se falhar
+     (offline, server down), ainda limpa local — UX prioriza logout
+     visível pro user mesmo se a chamada não foi confirmada. */
+  const token = getToken();
+  if (token) {
+    try {
+      const path = API_BASE ? `${API_BASE}/auth/logout` : '/api/auth/logout';
+      await fetch(path, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch {
+      /* swallow — limpa local mesmo se server falhou */
+    }
+  }
   try {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
-  } catch { /* noop */ }
+  } catch {
+    /* noop */
+  }
 }
 
 export function getToken(): string | null {

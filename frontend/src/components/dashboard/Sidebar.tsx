@@ -111,7 +111,9 @@ export function Sidebar(): JSX.Element {
   }
 
   function handleLogout(): void {
-    logout();
+    /* fire-and-forget: navega imediatamente; revocation server-side
+       acontece em background, UX não trava. */
+    void logout();
     nav('/login');
   }
 

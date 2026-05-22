@@ -16,6 +16,14 @@
 
 ---
 
+## 🟢 Feito (Sprint 1 · 2026-05-22)
+
+| Cat. | Issue | Como foi resolvido | Commit |
+|---|---|---|---|
+| 🟠 A6 | OAuth `state` era apenas "login"/"register" (sem CSRF protection) | `state = base64({ nonce, intent })`, com nonce em Redis (TTL 10min). `consumeOAuthState` valida + DEL atomic — single-shot, sem replay. Em [auth/oauthState.ts](../backend/src/auth/oauthState.ts) | _Sprint 1_ |
+| 🟡 M3 | Logout só apagava client-side; token sequestrado continuava válido por 12h | `POST /auth/logout` adiciona `jti` em Redis deny list (TTL = exp natural do token). `requireAuth` agora consulta `isRevoked(jti)` em cada request. PASETO `signToken` gera `jti` UUID por default. Em [auth/revocation.ts](../backend/src/auth/revocation.ts) | _Sprint 1_ |
+| 🟡 M9 | Sem audit log de ações sensíveis | Tabela `AuditEvent` (action, userId, tenantId, metadata, ipAddress, userAgent, createdAt) + enum `AuditAction` (20 ações). Helper `recordAudit` em [lib/audit.ts](../backend/src/lib/audit.ts) — best-effort, com guardas anti-vazamento de password/token no metadata. Integrado em register/login (success+fail)/Google sign-up/Google link/logout | _Sprint 1_ |
+
 ## 🟢 Feito (Sprint 0 · 2026-05-22)
 
 | Cat. | Issue | Como foi resolvido | Commit |

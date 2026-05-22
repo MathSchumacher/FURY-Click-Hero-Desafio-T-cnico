@@ -4,7 +4,10 @@ import { z } from 'zod';
 import { env } from '../config/env.js';
 import { logger } from '../lib/logger.js';
 import { authLimiter } from '../lib/rateLimit.js';
+import { recordAudit } from '../lib/audit.js';
+import { consumeOAuthState, issueOAuthState, type OAuthIntent } from '../auth/oauthState.js';
 import { signToken, verifyToken, type AuthClaims } from '../auth/paseto.js';
+import { isRevoked, revokeToken } from '../auth/revocation.js';
 import {
   createUser,
   findByEmail,
@@ -54,6 +57,13 @@ authRouter.post('/auth/register', authLimiter, async (req: Request, res: Respons
       email: pub.email,
       tenantId: tenant.id,
     });
+    void recordAudit({
+      action: 'USER_REGISTER',
+      userId: pub.id,
+      tenantId: tenant.id,
+      metadata: { email: pub.email, tenantSlug: tenant.slug },
+      req,
+    });
     return res
       .status(201)
       .json({ token, user: pub, tenant: { id: tenant.id, name: tenant.name, slug: tenant.slug } });
@@ -83,6 +93,12 @@ authRouter.post('/auth/login', authLimiter, async (req: Request, res: Response) 
   const user = await findByEmail(email);
   const ok = await verifyPasswordSafe(user, password);
   if (!user || !ok) {
+    void recordAudit({
+      action: 'USER_LOGIN_FAIL',
+      userId: user?.id ?? null,
+      metadata: { email: email.toLowerCase(), reason: user ? 'wrong_password' : 'unknown_email' },
+      req,
+    });
     return res.status(401).json({ error: 'email ou senha incorretos', field: '_' });
   }
   const tenantId = await findPrimaryTenantId(user.id);
@@ -100,6 +116,12 @@ authRouter.post('/auth/login', authLimiter, async (req: Request, res: Response) 
     name: pub.name,
     email: pub.email,
     tenantId,
+  });
+  void recordAudit({
+    action: 'USER_LOGIN_SUCCESS',
+    userId: pub.id,
+    tenantId,
+    req,
   });
   return res.json({ token, user: pub, tenant: { id: tenantId } });
 });
@@ -122,33 +144,37 @@ function googleClient(): OAuth2Client | null {
 }
 
 /**
- * Intent passada via query (?intent=login|register) e propagada via state
- * do OAuth de volta no callback. Distingue:
+ * Intent passada via query (?intent=login|register) — sanitiza pro union.
  *   - login: só loga users existentes; novos → erro account_not_found
  *   - register: cria User+Tenant se não existe, ou loga + vincula se já
+ *
+ * O state real do OAuth não é só "login"/"register" — agora é
+ * base64({ nonce, intent }) com nonce em Redis (TTL 10min). Isso impede
+ * CSRF: atacante não consegue forjar um callback válido sem ter primeiro
+ * iniciado o flow (e Redis ter armazenado o nonce).
  */
-type AuthIntent = 'login' | 'register';
-function parseIntent(raw: unknown): AuthIntent {
+function parseIntent(raw: unknown): OAuthIntent {
   return raw === 'register' ? 'register' : 'login';
 }
 
 /**
  * GET /auth/google?intent=login|register
  *
- * Inicia o fluxo OAuth: redireciona o user pro consentimento do Google.
- * O `intent` é gravado no state pra sobreviver ao round-trip.
+ * Inicia o fluxo OAuth: gera nonce + grava em Redis + encoda no state.
+ * Redireciona pro consentimento do Google.
  */
-authRouter.get('/auth/google', (req: Request, res: Response) => {
+authRouter.get('/auth/google', async (req: Request, res: Response) => {
   const client = googleClient();
   if (!client) {
     return res.status(503).json({ error: 'Google sign-in não está configurado neste ambiente.' });
   }
   const intent = parseIntent(req.query.intent);
+  const state = await issueOAuthState(intent);
   const url = client.generateAuthUrl({
     access_type: 'online',
     scope: ['openid', 'email', 'profile'],
     prompt: 'select_account',
-    state: intent,
+    state,
   });
   res.redirect(url);
 });
@@ -176,7 +202,15 @@ authRouter.get('/auth/google/callback', async (req: Request, res: Response) => {
     return;
   }
 
-  const intent: AuthIntent = parseIntent(req.query.state);
+  /* Valida + consome o nonce do state (CSRF guard A6). Se inválido,
+     significa que o callback foi forjado OU o nonce expirou (>10min). */
+  const rawState = typeof req.query.state === 'string' ? req.query.state : null;
+  const intent = rawState ? await consumeOAuthState(rawState) : null;
+  if (!intent) {
+    logger.warn({ rawState }, 'auth:google:invalid_state');
+    res.redirect(`${env.FRONTEND_URL}/auth/callback?error=invalid_state`);
+    return;
+  }
 
   try {
     const { tokens } = await client.getToken(code);
@@ -200,17 +234,41 @@ authRouter.get('/auth/google/callback', async (req: Request, res: Response) => {
     };
 
     let resolved: { user: import('@prisma/client').User; tenantId: string } | null;
+    let wasNew = false;
+    let wasLinked = false;
     if (intent === 'login') {
       /* Login: só aceita user existente. Não cria, não vincula silenciosamente. */
       resolved = await findGoogleUser(profile);
       if (!resolved) {
+        void recordAudit({
+          action: 'USER_LOGIN_FAIL',
+          metadata: { email: profile.email, via: 'google', reason: 'no_account' },
+          req,
+        });
         res.redirect(`${env.FRONTEND_URL}/auth/callback?error=account_not_found`);
         return;
       }
     } else {
       /* Register: cria User+Tenant se novo, ou vincula googleId se email já existe. */
+      const before = await findGoogleUser(profile);
       resolved = await findOrCreateGoogleUser(profile);
+      wasNew = before === null;
+      wasLinked =
+        !wasNew && before !== null && before.user.googleId !== resolved.user.googleId;
     }
+
+    const auditAction = wasNew
+      ? 'USER_GOOGLE_SIGNUP'
+      : wasLinked
+        ? 'USER_GOOGLE_LINK'
+        : 'USER_LOGIN_SUCCESS';
+    void recordAudit({
+      action: auditAction,
+      userId: resolved.user.id,
+      tenantId: resolved.tenantId,
+      metadata: { email: resolved.user.email, via: 'google' },
+      req,
+    });
 
     const pub = publicView(resolved.user);
     const token = await signToken({
@@ -258,9 +316,37 @@ export async function requireAuth(
     res.status(401).json({ error: 'token inválido ou expirado' });
     return;
   }
+  /* Revocation check (M3): jti gravado em Redis no logout. */
+  if (await isRevoked(claims.jti)) {
+    res.status(401).json({ error: 'token revogado' });
+    return;
+  }
   req.auth = claims;
   next();
 }
+
+/**
+ * POST /auth/logout
+ *
+ * Revoga o token atual gravando o jti em Redis até o exp natural.
+ * Idempotent — chamar repetidas vezes é OK.
+ */
+authRouter.post('/auth/logout', requireAuth, async (req: AuthedRequest, res: Response) => {
+  const claims = req.auth;
+  if (!claims) {
+    return res.status(401).json({ error: 'não autenticado' });
+  }
+  if (claims.jti) {
+    await revokeToken(claims.jti, claims.exp);
+  }
+  void recordAudit({
+    action: 'USER_LOGOUT',
+    userId: claims.sub,
+    tenantId: claims.tenantId,
+    req,
+  });
+  return res.json({ ok: true });
+});
 
 authRouter.get('/auth/me', requireAuth, (req: AuthedRequest, res: Response) => {
   const a = req.auth;

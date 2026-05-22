@@ -3,6 +3,7 @@ import {
   createPrivateKey,
   createPublicKey,
   generateKeyPairSync,
+  randomUUID,
   type KeyObject,
 } from 'node:crypto';
 
@@ -46,6 +47,7 @@ export type AuthClaims = {
   email: string;
   name: string;
   tenantId: string; // tenant ativo do usuário (default = workspace pessoal)
+  jti?: string; // JWT ID — usado pra revocation no logout
   iat?: string;
   exp?: string;
 };
@@ -54,7 +56,8 @@ const ISSUER = 'fury';
 const AUDIENCE = 'fury-app';
 const DEFAULT_EXP = '12h';
 
-/** Sign a PASETO V4.public token containing the given user claims. */
+/** Sign a PASETO V4.public token containing the given user claims.
+ *  Adiciona `jti` (UUID) pra permitir revocation server-side via Redis. */
 export async function signToken(
   claims: AuthClaims,
   expiresIn: string = DEFAULT_EXP,
@@ -66,6 +69,7 @@ export async function signToken(
       email: claims.email,
       name: claims.name,
       tenantId: claims.tenantId,
+      jti: claims.jti ?? randomUUID(),
     },
     secretKey,
     {
@@ -99,6 +103,7 @@ export async function verifyToken(token: string): Promise<AuthClaims | null> {
       email: p.email,
       name: p.name,
       tenantId: p.tenantId,
+      jti: typeof p.jti === 'string' ? p.jti : undefined,
       iat: typeof p.iat === 'string' ? p.iat : undefined,
       exp: typeof p.exp === 'string' ? p.exp : undefined,
     };
