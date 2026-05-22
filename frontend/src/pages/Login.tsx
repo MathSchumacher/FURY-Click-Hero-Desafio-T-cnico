@@ -86,7 +86,7 @@ export default function LoginPage(): JSX.Element {
             </span>
             <span>Lembrar de mim</span>
           </label>
-          <a href="#forgot" className="auth-form__link">Esqueci a senha</a>
+          <Link to="/auth/forgot-password" className="auth-form__link">Esqueci a senha</Link>
         </div>
 
         {error && (

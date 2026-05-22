@@ -11,6 +11,8 @@ export default tseslint.config(
       'coverage/**',
       'vitest.config.ts',
       'eslint.config.mjs',
+      /* admin scripts são one-off; tsconfig src/* não os inclui */
+      'scripts/**',
     ],
   },
 

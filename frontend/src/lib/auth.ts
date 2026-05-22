@@ -161,6 +161,26 @@ function readCookie(name: string): string | null {
   return match?.[1] ?? null;
 }
 
+/**
+ * Solicita link de reset de senha.
+ *
+ * Backend retorna 200 mesmo se email não existe (anti-enumeração).
+ * Em produção o link vai por email; em dev cai no log do Render.
+ */
+export async function requestPasswordReset(email: string): Promise<void> {
+  await postJson('/auth/forgot-password', { email });
+}
+
+/**
+ * Consome token do link + define nova senha.
+ *
+ * Backend valida token (single-use, TTL 1h, hash SHA-256), atualiza
+ * passwordHash com bcrypt cost 12, marca emailVerified=true.
+ */
+export async function resetPassword(token: string, password: string): Promise<void> {
+  await postJson('/auth/reset-password', { token, password });
+}
+
 export async function logout(): Promise<void> {
   /* Revoga server-side (jti em Redis deny list) e backend limpa o cookie.
      Inclui CSRF token (double-submit) — sem ele o backend rejeita 403. */

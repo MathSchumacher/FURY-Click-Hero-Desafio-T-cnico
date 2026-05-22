@@ -39,6 +39,7 @@
     "ioredis": "^5.4.1",
     "paseto": "^3.1.4",
     "pino": "^10.3.1",
+    "resend": "^6.12.3",
     "zod": "^3.23.8"
   },
   "devDependencies": {

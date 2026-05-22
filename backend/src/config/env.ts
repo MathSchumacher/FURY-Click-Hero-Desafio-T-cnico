@@ -35,6 +35,11 @@ const envSchema = z.object({
     .union([z.literal('true'), z.literal('false')])
     .default('false')
     .transform((v) => v === 'true'),
+  /* Resend (https://resend.com) — sender de email transactional.
+     Quando RESEND_API_KEY está setado + RESEND_FROM válido, sendVerificationEmail
+     envia de verdade. Caso contrário, loga o link só (dev mode). */
+  RESEND_API_KEY: z.string().optional(),
+  RESEND_FROM: z.string().email().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -50,6 +50,8 @@ const LoginPage = lazy(() => import('./pages/Login'));
 const RegisterPage = lazy(() => import('./pages/Register'));
 const DashboardPage = lazy(() => import('./pages/Dashboard'));
 const AuthCallbackPage = lazy(() => import('./pages/AuthCallback'));
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPassword'));
+const ResetPasswordPage = lazy(() => import('./pages/ResetPassword'));
 
 function LandingPage(): JSX.Element {
   return (
@@ -85,6 +87,8 @@ export function App(): JSX.Element {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
+          <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
           <Route
             path="/dashboard"
             element={

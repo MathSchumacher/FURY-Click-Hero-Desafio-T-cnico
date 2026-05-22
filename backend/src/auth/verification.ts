@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { VerificationPurpose } from '@prisma/client';
+import { Resend } from 'resend';
 import { env } from '../config/env.js';
 import { logger } from '../lib/logger.js';
 import { prisma } from '../lib/prisma.js';
@@ -99,26 +100,94 @@ export async function consumeVerificationToken(
  */
 type EmailKind = 'verify_email' | 'password_reset';
 
-export function sendVerificationEmail(args: {
+/** Cache do client Resend pra reusar conexão keep-alive entre requests. */
+let resendClient: Resend | null = null;
+function getResend(): Resend | null {
+  if (!env.RESEND_API_KEY || !env.RESEND_FROM) return null;
+  resendClient ??= new Resend(env.RESEND_API_KEY);
+  return resendClient;
+}
+
+const TEMPLATES: Record<EmailKind, (link: string) => { subject: string; html: string; text: string }> = {
+  verify_email: (link) => ({
+    subject: 'Confirme seu email — FURY',
+    text: `Bem-vindo ao FURY. Confirme seu email abrindo: ${link}\n\nO link expira em 24h.`,
+    html: `<div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;color:#111;line-height:1.55">
+  <h2 style="margin:0 0 12px;font-size:22px">Bem-vindo ao FURY</h2>
+  <p style="margin:0 0 20px;color:#444">Confirme seu email pra ativar sua conta:</p>
+  <a href="${link}" style="display:inline-block;padding:12px 24px;background:#ff3d2e;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Confirmar email</a>
+  <p style="margin:24px 0 0;font-size:13px;color:#666">O link expira em 24h. Se você não pediu isso, ignore.</p>
+  <p style="margin:8px 0 0;font-size:11px;color:#999;word-break:break-all">Link bruto: ${link}</p>
+</div>`,
+  }),
+  password_reset: (link) => ({
+    subject: 'Redefinir senha — FURY',
+    text: `Pedido de redefinição de senha. Acesse: ${link}\n\nO link expira em 1h e só pode ser usado uma vez. Se não foi você, ignore.`,
+    html: `<div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;color:#111;line-height:1.55">
+  <h2 style="margin:0 0 12px;font-size:22px">Redefinir senha</h2>
+  <p style="margin:0 0 20px;color:#444">Recebemos um pedido pra redefinir a senha da sua conta FURY:</p>
+  <a href="${link}" style="display:inline-block;padding:12px 24px;background:#ff3d2e;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Definir nova senha</a>
+  <p style="margin:24px 0 0;font-size:13px;color:#666">O link expira em 1 hora e só funciona uma vez. Se você não pediu, pode ignorar — sua senha atual continua válida.</p>
+  <p style="margin:8px 0 0;font-size:11px;color:#999;word-break:break-all">Link bruto: ${link}</p>
+</div>`,
+  }),
+};
+
+/**
+ * Envia email transactional via Resend.
+ *
+ * Se RESEND_API_KEY + RESEND_FROM não estão setados, cai em "dev mode" —
+ * apenas logga o link estruturado (útil pra debug local + ambientes sem
+ * provider conectado). Em prod com provider configurado, envia de verdade
+ * + logga o messageId pra trace.
+ *
+ * Best-effort: falha de envio NÃO derruba o request — o token já foi
+ * gerado e gravado. User pode pedir reenvio se não chegar.
+ */
+export async function sendVerificationEmail(args: {
   to: string;
   kind: EmailKind;
   link: string;
   verificationId: string;
 }): Promise<void> {
-  const isProd = env.NODE_ENV === 'production';
+  const client = getResend();
 
-  /* Em dev: logga o link inteiro pra DX (copie do log e abra no browser).
-     Em prod: logga sem o link, esperando integração com Resend/SES no futuro. */
-  if (isProd) {
-    logger.info(
-      { to: args.to, kind: args.kind, verificationId: args.verificationId },
-      'email:sent (prod stub — TODO conectar provider)',
-    );
-  } else {
+  if (!client) {
     logger.info(
       { to: args.to, kind: args.kind, link: args.link, verificationId: args.verificationId },
-      'email:sent (dev mode — link no log)',
+      'email:sent (dev mode — sem RESEND_API_KEY, link no log)',
+    );
+    return;
+  }
+
+  const tpl = TEMPLATES[args.kind](args.link);
+  /* `getResend()` valida `RESEND_FROM` antes de retornar — aqui é seguro. */
+  const from = env.RESEND_FROM ?? '';
+
+  try {
+    const result = await client.emails.send({
+      from,
+      to: args.to,
+      subject: tpl.subject,
+      html: tpl.html,
+      text: tpl.text,
+    });
+    if (result.error) {
+      throw new Error(`Resend error: ${result.error.message}`);
+    }
+    logger.info(
+      {
+        to: args.to,
+        kind: args.kind,
+        verificationId: args.verificationId,
+        messageId: result.data.id,
+      },
+      'email:sent',
+    );
+  } catch (err) {
+    logger.error(
+      { err: (err as Error).message, to: args.to, kind: args.kind, verificationId: args.verificationId },
+      'email:send_failed',
     );
   }
-  return Promise.resolve();
 }
