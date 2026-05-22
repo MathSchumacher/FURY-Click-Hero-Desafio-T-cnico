@@ -1,5 +1,6 @@
 import type { Job } from 'bullmq';
 import { logger } from '../lib/logger.js';
+import { prisma } from '../lib/prisma.js';
 import type { TakedownResult, ViolationPayload } from '../schemas/violation.js';
 import { callUpstream } from './upstream.js';
 
@@ -8,6 +9,10 @@ import { callUpstream } from './upstream.js';
  * result. Any throw is rethrown to BullMQ for the retry/backoff machinery.
  *
  * Pure-ish: takes a Job, uses fetch through `callUpstream`. Easy to mock.
+ *
+ * Persiste transições de estado na Violation (ACTIVE no início, COMPLETED no
+ * sucesso) — best-effort: erro no DB não derruba o processamento, vai pro log.
+ * A falha final (FAILED) é tratada por handleFinalFailure via worker.on('failed').
  */
 export async function processTakedown(
   job: Job<ViolationPayload, TakedownResult>,
@@ -21,6 +26,20 @@ export async function processTakedown(
     'takedown:start',
   );
 
+  if (typeof job.id === 'string' && job.id.length > 0) {
+    await prisma.violation
+      .updateMany({
+        where: { jobId: job.id },
+        data: { status: 'ACTIVE', attempts: attempt },
+      })
+      .catch((err: unknown) => {
+        logger.error(
+          { err: (err as Error).message, jobId: job.id },
+          'violation:write-active-failed',
+        );
+      });
+  }
+
   const startedAt = Date.now();
   const { status } = await callUpstream();
   const upstreamLatencyMs = Date.now() - startedAt;
@@ -32,6 +51,25 @@ export async function processTakedown(
     adId,
     tenantId,
   };
+
+  if (typeof job.id === 'string' && job.id.length > 0) {
+    await prisma.violation
+      .updateMany({
+        where: { jobId: job.id },
+        data: {
+          status: 'COMPLETED',
+          upstreamStatus: status,
+          upstreamLatencyMs,
+          finishedAt: new Date(),
+        },
+      })
+      .catch((err: unknown) => {
+        logger.error(
+          { err: (err as Error).message, jobId: job.id },
+          'violation:write-completed-failed',
+        );
+      });
+  }
 
   logger.info(
     { jobId: job.id, upstreamStatus: status, upstreamLatencyMs, attempt },

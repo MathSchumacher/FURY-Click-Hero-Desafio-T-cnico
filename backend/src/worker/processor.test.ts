@@ -1,5 +1,5 @@
 import type { Job } from 'bullmq';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TakedownResult, ViolationPayload } from '../schemas/violation.js';
 import { UpstreamError } from './upstream.js';
 
@@ -11,6 +11,18 @@ vi.mock('./upstream.js', async () => {
   };
 });
 
+const violationUpdateManySpy = vi
+  .fn<(args: unknown) => Promise<{ count: number }>>()
+  .mockResolvedValue({ count: 1 });
+
+vi.mock('../lib/prisma.js', () => ({
+  prisma: {
+    violation: {
+      updateMany: (args: unknown) => violationUpdateManySpy(args),
+    },
+  },
+}));
+
 type CallUpstreamFn = typeof import('./upstream.js').callUpstream;
 type ProcessFn = typeof import('./processor.js').processTakedown;
 
@@ -21,6 +33,10 @@ beforeAll(async () => {
   const upstream = (await import('./upstream.js')) as unknown as { callUpstream: CallUpstreamFn };
   callUpstreamMock = upstream.callUpstream as unknown as ReturnType<typeof vi.fn>;
   ({ processTakedown } = await import('./processor.js'));
+});
+
+beforeEach(() => {
+  violationUpdateManySpy.mockClear();
 });
 
 function makeJob(overrides?: Partial<ViolationPayload>): Job<ViolationPayload, TakedownResult> {
@@ -75,5 +91,60 @@ describe('processTakedown', () => {
     expect(err).toBeInstanceOf(UpstreamError);
     expect(err.message).toMatch(/timeout/);
     expect(err.status).toBeUndefined();
+  });
+
+  /* ── Novos comportamentos da Fase 1.4: writes no Violation ── */
+
+  it('marca Violation como ACTIVE no início do processamento (com attempts++)', async () => {
+    callUpstreamMock.mockResolvedValueOnce({ status: 200 });
+    await processTakedown(makeJob());
+    const activeCall = violationUpdateManySpy.mock.calls.find(
+      (c) => (c[0] as { data: { status: string } }).data.status === 'ACTIVE',
+    );
+    expect(activeCall).toBeDefined();
+    const args = activeCall?.[0] as {
+      where: { jobId: string };
+      data: { status: string; attempts: number };
+    };
+    expect(args.where.jobId).toBe('tenant_x__ad_1');
+    expect(args.data.attempts).toBe(1); /* attemptsMade=0 + 1 */
+  });
+
+  it('marca Violation como COMPLETED com upstream details em sucesso', async () => {
+    callUpstreamMock.mockResolvedValueOnce({ status: 200 });
+    await processTakedown(makeJob());
+    const completedCall = violationUpdateManySpy.mock.calls.find(
+      (c) => (c[0] as { data: { status: string } }).data.status === 'COMPLETED',
+    );
+    expect(completedCall).toBeDefined();
+    const args = completedCall?.[0] as {
+      where: { jobId: string };
+      data: {
+        status: string;
+        upstreamStatus: number;
+        upstreamLatencyMs: number;
+        finishedAt: Date;
+      };
+    };
+    expect(args.where.jobId).toBe('tenant_x__ad_1');
+    expect(args.data.upstreamStatus).toBe(200);
+    expect(args.data.upstreamLatencyMs).toBeGreaterThanOrEqual(0);
+    expect(args.data.finishedAt).toBeInstanceOf(Date);
+  });
+
+  it('NÃO marca Violation como FAILED em falha individual (BullMQ vai retry)', async () => {
+    callUpstreamMock.mockRejectedValueOnce(new UpstreamError('upstream HTTP 503', 503));
+    await processTakedown(makeJob()).catch(() => undefined);
+    const failedCall = violationUpdateManySpy.mock.calls.find(
+      (c) => (c[0] as { data: { status: string } }).data.status === 'FAILED',
+    );
+    expect(failedCall).toBeUndefined(); /* só onFailure.ts marca FAILED */
+  });
+
+  it('não quebra processamento se update do DB falhar (log + segue)', async () => {
+    callUpstreamMock.mockResolvedValueOnce({ status: 200 });
+    violationUpdateManySpy.mockRejectedValueOnce(new Error('DB offline'));
+    /* Não deve lançar — DB write é best-effort, o job em si terminou bem */
+    await expect(processTakedown(makeJob())).resolves.toMatchObject({ upstreamStatus: 200 });
   });
 });
