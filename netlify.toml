@@ -1,0 +1,17 @@
+# Config do deploy no Netlify. Sobrescreve qualquer setting do painel da UI.
+# Documentação: https://docs.netlify.com/configure-builds/file-based-configuration/
+
+[build]
+  base    = "frontend"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA fallback — qualquer rota desconhecida serve o index.html pro React Router
+# (também já existe em frontend/public/_redirects; deixar nos dois é seguro).
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
