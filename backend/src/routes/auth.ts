@@ -79,9 +79,17 @@ authRouter.post('/auth/register', authLimiter, async (req: Request, res: Respons
       .status(201)
       .json({ token, user: pub, tenant: { id: tenant.id, name: tenant.name, slug: tenant.slug } });
   } catch (err) {
-    const e = err as Error & { status?: number; field?: string };
+    const e = err as Error & { status?: number; field?: string; code?: string };
+    /* Log estruturado pro Render → diagnosticar 500 inesperados.
+       Prisma errors trazem `code` (P2002, P2025, etc) — útil pra forense. */
+    if (!e.status || e.status >= 500) {
+      logger.error(
+        { err: e.message, code: e.code, stack: e.stack, email: email.toLowerCase() },
+        'auth:register:failed',
+      );
+    }
     return res.status(e.status ?? 500).json({
-      error: e.message,
+      error: e.status ? e.message : 'Erro ao criar conta. Tente novamente em alguns segundos.',
       field: e.field ?? '_',
     });
   }
@@ -99,10 +107,11 @@ authRouter.post('/auth/login', authLimiter, async (req: Request, res: Response) 
   }
   const { email, password } = parsed.data;
 
-  /* Timing-safe: roda bcrypt sempre, mesmo se user não existe, pra
-     anular enumeração de email via diff de latência (A3 da auditoria). */
-  const user = await findByEmail(email);
-  const ok = await verifyPasswordSafe(user, password);
+  try {
+    /* Timing-safe: roda bcrypt sempre, mesmo se user não existe, pra
+       anular enumeração de email via diff de latência (A3 da auditoria). */
+    const user = await findByEmail(email);
+    const ok = await verifyPasswordSafe(user, password);
   if (!user || !ok) {
     void recordAudit({
       action: 'USER_LOGIN_FAIL',
@@ -137,6 +146,16 @@ authRouter.post('/auth/login', authLimiter, async (req: Request, res: Response) 
   setSessionCookie(res, token);
   setCsrfCookie(res, issueCsrfToken());
   return res.json({ token, user: pub, tenant: { id: tenantId } });
+  } catch (err) {
+    const e = err as Error & { code?: string };
+    logger.error(
+      { err: e.message, code: e.code, stack: e.stack, email: email.toLowerCase() },
+      'auth:login:failed',
+    );
+    return res
+      .status(500)
+      .json({ error: 'Erro ao processar login. Tente novamente em alguns segundos.' });
+  }
 });
 
 /* ── Google OAuth — sign-in/sign-up via Google ────────────────────── */
