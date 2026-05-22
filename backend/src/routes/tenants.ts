@@ -1,6 +1,9 @@
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
+import { csrfProtection } from '../auth/csrf.js';
+import { recordAudit } from '../lib/audit.js';
+import { generateWebhookSecret } from '../auth/webhookSignature.js';
 import { requireAuth, type AuthedRequest } from './auth.js';
 
 export const tenantsRouter: Router = Router();
@@ -198,3 +201,102 @@ tenantsRouter.get('/tenants/me/violations', async (req: AuthedRequest, res: Resp
 
   return res.json({ total, page, limit, items });
 });
+
+/* ── Webhook secret: visualizar + rotacionar (OWNER only) ────────── */
+
+async function requireOwnerRole(userId: string, tenantId: string): Promise<void> {
+  const m = await prisma.membership.findFirst({
+    where: { userId, tenantId },
+    select: { role: true },
+  });
+  if (!m) {
+    throw Object.assign(new Error('sem acesso a esse workspace'), { status: 403 });
+  }
+  if (m.role !== 'OWNER') {
+    throw Object.assign(new Error('apenas owners podem gerenciar o webhook secret'), {
+      status: 403,
+    });
+  }
+}
+
+/**
+ * GET /tenants/me/webhook-secret
+ *
+ * Retorna o secret atual do tenant pra que owner copie e configure no
+ * cliente que dispara webhooks (Meta Ads, etc). Auto-gera se ainda for null
+ * (rows pre-Sprint-1 que vieram da migration sem default).
+ *
+ * Apenas role OWNER pode ver — secret é credential equivalente.
+ */
+tenantsRouter.get('/tenants/me/webhook-secret', async (req: AuthedRequest, res: Response) => {
+  const claims = req.auth;
+  if (!claims) return res.status(401).json({ error: 'não autenticado' });
+
+  try {
+    await requireOwnerRole(claims.sub, claims.tenantId);
+  } catch (err) {
+    const e = err as Error & { status?: number };
+    return res.status(e.status ?? 500).json({ error: e.message });
+  }
+
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: claims.tenantId },
+    select: { webhookSecret: true },
+  });
+  if (!tenant) return res.status(404).json({ error: 'workspace não encontrado' });
+
+  /* Backfill on read pra tenants legados que vieram da migration null. */
+  let secret = tenant.webhookSecret;
+  if (!secret) {
+    secret = generateWebhookSecret();
+    await prisma.tenant.update({
+      where: { id: claims.tenantId },
+      data: { webhookSecret: secret },
+    });
+  }
+
+  return res.json({
+    secret,
+    instructions:
+      'Compute HMAC-SHA256(rawBody, secret) e envie como header `X-FURY-Signature: sha256=<hex>` em POST /webhook/violation. Verificação é opt-in via WEBHOOK_REQUIRE_SIGNATURE=true no backend.',
+  });
+});
+
+/**
+ * POST /tenants/me/webhook-secret/rotate
+ *
+ * Gera novo secret + invalida o antigo. Use quando o secret atual vazar
+ * ou periodicamente (rotação por boas práticas).
+ *
+ * Protegido por CSRF (state-changing) + OWNER role.
+ */
+tenantsRouter.post(
+  '/tenants/me/webhook-secret/rotate',
+  csrfProtection,
+  async (req: AuthedRequest, res: Response) => {
+    const claims = req.auth;
+    if (!claims) return res.status(401).json({ error: 'não autenticado' });
+
+    try {
+      await requireOwnerRole(claims.sub, claims.tenantId);
+    } catch (err) {
+      const e = err as Error & { status?: number };
+      return res.status(e.status ?? 500).json({ error: e.message });
+    }
+
+    const secret = generateWebhookSecret();
+    await prisma.tenant.update({
+      where: { id: claims.tenantId },
+      data: { webhookSecret: secret },
+    });
+
+    void recordAudit({
+      action: 'WEBHOOK_SECRET_ROTATE',
+      userId: claims.sub,
+      tenantId: claims.tenantId,
+      req,
+    });
+
+    return res.json({ secret });
+  },
+);

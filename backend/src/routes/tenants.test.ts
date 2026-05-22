@@ -10,7 +10,13 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
  * req.auth direto via middleware fake antes de montar o router.
  */
 
-type FakeTenant = { id: string; name: string; slug: string; createdAt: Date };
+type FakeTenant = {
+  id: string;
+  name: string;
+  slug: string;
+  createdAt: Date;
+  webhookSecret?: string | null;
+};
 type FakeMembership = { userId: string; tenantId: string; role: string };
 type FakeViolation = {
   id?: string;
@@ -42,7 +48,20 @@ function filterViolations(where: {
 vi.mock('../lib/prisma.js', () => ({
   prisma: {
     tenant: {
-      findUnique: async ({ where }: { where: { id: string } }) => fakeTenants.get(where.id) ?? null,
+      findUnique: async ({ where }: { where: { id: string } }) =>
+        fakeTenants.get(where.id) ?? null,
+      update: async ({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: Partial<FakeTenant>;
+      }) => {
+        const t = fakeTenants.get(where.id);
+        if (!t) throw new Error('not found');
+        Object.assign(t, data);
+        return t;
+      },
     },
     membership: {
       findFirst: async ({ where }: { where: { userId: string; tenantId: string } }) =>
@@ -131,8 +150,10 @@ beforeEach(() => {
 });
 
 async function buildApp(): Promise<express.Express> {
+  const { default: cookieParser } = await import('cookie-parser');
   const app = express();
   app.use(express.json());
+  app.use(cookieParser());
   app.use(tenantsRouter);
   return app;
 }
@@ -388,5 +409,119 @@ describe('GET /tenants/me/violations', () => {
       .get('/tenants/me/violations')
       .set(authHeader({ sub: 'u_1', tenantId: 't_acme' }));
     expect(res.body.items.every((v: { adId: string }) => v.adId !== 'leaked')).toBe(true);
+  });
+});
+
+describe('GET /tenants/me/webhook-secret', () => {
+  beforeEach(() => {
+    fakeTenants.set('t_acme', {
+      id: 't_acme',
+      name: 'Acme',
+      slug: 'acme',
+      createdAt: new Date(),
+      webhookSecret: 'seed_secret_abc',
+    });
+  });
+
+  it('401 sem auth', async () => {
+    const app = await buildApp();
+    const res = await request(app).get('/tenants/me/webhook-secret');
+    expect(res.status).toBe(401);
+  });
+
+  it('403 quando member não é OWNER', async () => {
+    fakeMemberships.push({ userId: 'u_1', tenantId: 't_acme', role: 'MEMBER' });
+    const app = await buildApp();
+    const res = await request(app)
+      .get('/tenants/me/webhook-secret')
+      .set(authHeader({ sub: 'u_1', tenantId: 't_acme' }));
+    expect(res.status).toBe(403);
+  });
+
+  it('200 com secret pra OWNER', async () => {
+    fakeMemberships.push({ userId: 'u_1', tenantId: 't_acme', role: 'OWNER' });
+    const app = await buildApp();
+    const res = await request(app)
+      .get('/tenants/me/webhook-secret')
+      .set(authHeader({ sub: 'u_1', tenantId: 't_acme' }));
+    expect(res.status).toBe(200);
+    expect(res.body.secret).toBe('seed_secret_abc');
+    expect(res.body.instructions).toMatch(/HMAC-SHA256/);
+  });
+
+  it('backfill: gera secret novo se tenant.webhookSecret é null (legacy)', async () => {
+    fakeTenants.set('t_legacy', {
+      id: 't_legacy',
+      name: 'Legacy',
+      slug: 'legacy',
+      createdAt: new Date(),
+      webhookSecret: null,
+    });
+    fakeMemberships.push({ userId: 'u_1', tenantId: 't_legacy', role: 'OWNER' });
+    const app = await buildApp();
+    const res = await request(app)
+      .get('/tenants/me/webhook-secret')
+      .set(authHeader({ sub: 'u_1', tenantId: 't_legacy' }));
+    expect(res.status).toBe(200);
+    expect(res.body.secret).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(res.body.secret.length).toBeGreaterThanOrEqual(32);
+    /* Foi gravado no DB */
+    expect(fakeTenants.get('t_legacy')?.webhookSecret).toBe(res.body.secret);
+  });
+});
+
+describe('POST /tenants/me/webhook-secret/rotate', () => {
+  beforeEach(() => {
+    fakeTenants.set('t_acme', {
+      id: 't_acme',
+      name: 'Acme',
+      slug: 'acme',
+      createdAt: new Date(),
+      webhookSecret: 'old_secret_xxx',
+    });
+  });
+
+  it('401 sem auth (mesmo com CSRF válido)', async () => {
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/tenants/me/webhook-secret/rotate')
+      .set('Cookie', 'fury_csrf=ok')
+      .set('X-CSRF-Token', 'ok');
+    expect(res.status).toBe(401);
+  });
+
+  it('403 quando member não é OWNER', async () => {
+    fakeMemberships.push({ userId: 'u_1', tenantId: 't_acme', role: 'ADMIN' });
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/tenants/me/webhook-secret/rotate')
+      .set(authHeader({ sub: 'u_1', tenantId: 't_acme' }))
+      /* CSRF mock — middleware espera cookie==header */
+      .set('Cookie', 'fury_csrf=valid')
+      .set('X-CSRF-Token', 'valid');
+    expect(res.status).toBe(403);
+  });
+
+  it('200 + novo secret diferente do antigo (OWNER + CSRF válido)', async () => {
+    fakeMemberships.push({ userId: 'u_1', tenantId: 't_acme', role: 'OWNER' });
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/tenants/me/webhook-secret/rotate')
+      .set(authHeader({ sub: 'u_1', tenantId: 't_acme' }))
+      .set('Cookie', 'fury_csrf=match')
+      .set('X-CSRF-Token', 'match');
+    expect(res.status).toBe(200);
+    expect(res.body.secret).not.toBe('old_secret_xxx');
+    expect(fakeTenants.get('t_acme')?.webhookSecret).toBe(res.body.secret);
+  });
+
+  it('403 sem CSRF (mesmo com OWNER)', async () => {
+    fakeMemberships.push({ userId: 'u_1', tenantId: 't_acme', role: 'OWNER' });
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/tenants/me/webhook-secret/rotate')
+      .set(authHeader({ sub: 'u_1', tenantId: 't_acme' }));
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/csrf/i);
   });
 });
