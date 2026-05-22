@@ -1,6 +1,10 @@
-/* ── Client typado pros endpoints autenticados do backend ── */
-
-import { getToken } from './auth';
+/* ── Client typado pros endpoints autenticados do backend ──
+ *
+ * Sessão vive em cookie HttpOnly setado pelo backend. Toda chamada usa
+ * `credentials: 'include'` pra o browser anexar o cookie automaticamente
+ * em requests cross-origin (Netlify → Render). CORS allowlist no backend
+ * já tem `credentials: true`.
+ */
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
 
@@ -9,14 +13,12 @@ function url(path: string): string {
 }
 
 async function authed<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = getToken();
-  if (!token) throw new Error('not_authenticated');
   const res = await fetch(url(path), {
     ...init,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...(init.headers ?? {}),
-      Authorization: `Bearer ${token}`,
     },
   });
   const text = await res.text();

@@ -5,8 +5,14 @@ import { fetchMe, setSession } from '../lib/auth';
 /**
  * /auth/callback — landing page do redirect do backend após Google OAuth.
  *
- *   ?token=<paseto>  → salva token, busca /auth/me, redireciona pro dashboard
+ * Backend já setou o cookie HttpOnly antes do redirect; só precisamos
+ * validar a sessão via /auth/me e cachar o user.
+ *
  *   ?error=<reason>  → mostra mensagem de erro com link pra tentar de novo
+ *   (sem erro)       → valida sessão e leva pro dashboard
+ *
+ * Nota: o query param `?token=...` ainda vem do backend durante a
+ * transição; ignorado aqui (token vive APENAS no cookie HttpOnly).
  */
 export default function AuthCallback(): JSX.Element {
   const [params] = useSearchParams();
@@ -14,29 +20,16 @@ export default function AuthCallback(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = params.get('token');
     const errParam = params.get('error');
-
     if (errParam) {
       setError(decodeURIComponent(errParam));
-      return;
-    }
-    if (!token) {
-      setError('no_token');
       return;
     }
 
     (async () => {
       try {
-        /* fetchMe lê o token do localStorage, então grava primeiro */
-        localStorage.setItem('fury_token', token);
         const user = await fetchMe();
-        setSession(token, {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          createdAt: 'createdAt' in user ? (user as { createdAt: string }).createdAt : '',
-        });
+        setSession(user);
         navigate('/dashboard', { replace: true });
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'unknown';
