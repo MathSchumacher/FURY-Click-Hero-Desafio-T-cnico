@@ -6,11 +6,17 @@
 
 **Mini-API event-driven em Node.js + TypeScript: webhook → BullMQ → Worker → status.**
 
-[![CI](https://github.com/matheusmschumacher/fury-tech-challenge/actions/workflows/ci.yml/badge.svg)](.github/workflows/ci.yml)
+[![CI](https://github.com/MathSchumacher/FURY-Click-Hero-Desafio-T-cnico/actions/workflows/ci.yml/badge.svg)](https://github.com/MathSchumacher/FURY-Click-Hero-Desafio-T-cnico/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/tests-57%20%2B%206%20E2E-success)](backend/src)
 [![Coverage](https://img.shields.io/badge/coverage-97%25-success)](backend/vitest.config.ts)
 [![Type](https://img.shields.io/badge/TypeScript-strict-blue)](backend/tsconfig.json)
 [![Lint](https://img.shields.io/badge/ESLint-strict--type--checked-blueviolet)](backend/eslint.config.mjs)
+
+<br />
+
+<img src="docs/print1.png" alt="FURY — landing page completa do produto" width="820" />
+
+<p><em>A landing page completa do FURY — construída em volta do core do desafio pra dar contexto de produto real (Vite + React + GSAP + R3F + Clash Display/Satoshi).</em></p>
 
 </div>
 
@@ -18,8 +24,9 @@
 
 ## 👋 Para o avaliador — leia primeiro
 
-**Onde está o desafio?** Tudo o que foi pedido está em [`backend/`](backend/).
-O frontend (landing page + dashboard) é **extra fora do escopo** — sinta-se à vontade pra ignorar.
+**Onde está o core do desafio?** Tudo o que foi explicitamente pedido está em [`backend/`](backend/).
+Tem também uma **landing page e dashboard pós-login** completos em [`frontend/`](frontend/) —
+construídos em volta do desafio pra mostrar o produto FURY como ele seria de verdade.
 
 ```bash
 # Setup completo em 60s
@@ -84,13 +91,6 @@ npm run check            # XP gate completo: lint + typecheck + format + test
 | **Idempotência** `tenantId+adId` | `buildJobId` em [jobOptions.ts](backend/src/queue/jobOptions.ts) + dedup check em [webhook.ts](backend/src/routes/webhook.ts) |
 | `GET /jobs/:id` no shape pedido | [backend/src/routes/jobs.ts](backend/src/routes/jobs.ts) · [test](backend/src/routes/jobs.test.ts) |
 | README com instruções | este arquivo + [backend/README.md](backend/README.md) |
-
----
-
-<div align="center">
-  <img src="docs/print1.png" alt="FURY — landing page do desafio" width="780" />
-  <p><em>FURY · landing extra com a identidade visual do produto (fora do escopo do desafio, mas dentro do mesmo monorepo).</em></p>
-</div>
 
 ---
 
@@ -317,10 +317,28 @@ Roadmap detalhado de 9 → 10: [backend/ROADMAP.md](backend/ROADMAP.md).
 
 ---
 
-## 🎁 Extras do monorepo (fora do escopo do desafio)
+## 🎁 Produto FURY construído em volta do core
 
-- **Landing page** ([frontend/](frontend/)) — Vite + React + GSAP + R3F + Clash Display/Satoshi · 12 seções animadas
-- **Dashboard pós-login** ([frontend/src/pages/Dashboard.tsx](frontend/src/pages/Dashboard.tsx)) — sidebar custom, métricas em tempo real, gráfico ROAS
-- **Auth PASETO V4** ([backend/src/auth/](backend/src/auth/)) — Ed25519 + bcrypt · `POST /auth/register/login` + middleware `requireAuth`
+Pra mostrar o que o desafio resolve no mundo real, construí o produto completo
+em volta do núcleo do webhook. Tudo em arquivos separados — **não interfere com
+o fluxo do desafio**. O núcleo (`webhook → fila → worker → status`) roda
+isolado com `cd backend && npm run dev`.
 
-Tudo em arquivos separados — **não interfere com o fluxo do desafio**. O núcleo (`webhook → fila → worker → status`) roda isolado com `cd backend && npm run dev`.
+### Frontend ([frontend/](frontend/))
+
+- **Landing page** — Vite + React + GSAP (ScrollTrigger + SplitText) + R3F (modelo 3D do logo FURY interativo) + Clash Display + Satoshi via Fontshare · 12 seções com animações cinematográficas, vídeo de background processado, splash de abertura com iris reveal, cursor customizado com trail de embers, design system completo com tokens
+- **Dashboard pós-login** ([frontend/src/pages/Dashboard.tsx](frontend/src/pages/Dashboard.tsx)) — sidebar custom adaptada do design system, painel ao vivo simulando um cliente Acme Moda (ROAS em tempo real com Catmull-Rom spline, event log animado, severity donut, connections panel)
+- **Login + Register** com PASETO V4 real ([frontend/src/pages/Login.tsx](frontend/src/pages/Login.tsx)) — split-screen, password strength meter, OAuth mocks, error shake animation
+- **Responsividade**: 5 breakpoints (375 / 640 / 960 / 1100 / 1400+), tested
+
+### Backend bonus ([backend/src/auth/](backend/src/auth/))
+
+- **Auth PASETO V4** com Ed25519 + bcrypt cost 12 · endpoints `POST /auth/register`, `POST /auth/login`, `GET /auth/me` + middleware `requireAuth` reusável em qualquer endpoint protegido
+
+### Por que está aqui
+
+O desafio pede uma mini-API isolada. Eu entreguei isso (e mais — coverage, E2E, CI), MAS também
+quis mostrar como esse núcleo se encaixaria num produto real — porque é assim que código de
+produção vive. Os extras estão em arquivos independentes, não acoplam com o core e não
+poluem o XP gate do backend (auth está excluído do scope de coverage, frontend tem seu
+próprio pipeline).
