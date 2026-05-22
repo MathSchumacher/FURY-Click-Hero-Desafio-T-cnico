@@ -12,6 +12,7 @@ import { healthRouter } from './routes/health.js';
 import { metricsRouter } from './routes/metrics.js';
 import { authRouter } from './routes/auth.js';
 import { tenantsRouter } from './routes/tenants.js';
+import { openapiRouter } from './routes/openapi.js';
 import './worker.js';
 
 const isProd = env.NODE_ENV === 'production';
@@ -115,6 +116,7 @@ app.use(deadLetterRouter);
 app.use(jobsRouter);
 app.use(authRouter);
 app.use(tenantsRouter);
+app.use(openapiRouter);
 
 /**
  * Error handler global.
@@ -156,6 +158,8 @@ app.listen(env.PORT, () => {
         'GET  /tenants/me         (auth)',
         'GET  /tenants/me/stats   (auth)',
         'GET  /tenants/me/violations (auth)',
+        'GET  /openapi.json',
+        'GET  /docs',
       ],
     },
     'http:listening',
