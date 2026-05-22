@@ -3,6 +3,7 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod';
 import { env } from '../config/env.js';
 import { logger } from '../lib/logger.js';
+import { authLimiter } from '../lib/rateLimit.js';
 import { signToken, verifyToken, type AuthClaims } from '../auth/paseto.js';
 import {
   createUser,
@@ -11,24 +12,28 @@ import {
   findOrCreateGoogleUser,
   findPrimaryTenantId,
   publicView,
-  verifyPassword,
+  verifyPasswordSafe,
   type GoogleProfile,
 } from '../auth/users.js';
 
 export const authRouter: Router = Router();
 
-const registerSchema = z.object({
-  name: z.string().min(2, 'nome muito curto').max(80),
-  email: z.string().email('email inválido').max(120),
-  password: z.string().min(8, 'a senha deve ter ao menos 8 caracteres').max(120),
-});
+const registerSchema = z
+  .object({
+    name: z.string().min(2, 'nome muito curto').max(80),
+    email: z.string().email('email inválido').max(120),
+    password: z.string().min(8, 'a senha deve ter ao menos 8 caracteres').max(120),
+  })
+  .strict();
 
-const loginSchema = z.object({
-  email: z.string().email('email inválido'),
-  password: z.string().min(1),
-});
+const loginSchema = z
+  .object({
+    email: z.string().email('email inválido').max(120),
+    password: z.string().min(1).max(120),
+  })
+  .strict();
 
-authRouter.post('/auth/register', async (req: Request, res: Response) => {
+authRouter.post('/auth/register', authLimiter, async (req: Request, res: Response) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
@@ -61,7 +66,7 @@ authRouter.post('/auth/register', async (req: Request, res: Response) => {
   }
 });
 
-authRouter.post('/auth/login', async (req: Request, res: Response) => {
+authRouter.post('/auth/login', authLimiter, async (req: Request, res: Response) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
@@ -73,12 +78,11 @@ authRouter.post('/auth/login', async (req: Request, res: Response) => {
   }
   const { email, password } = parsed.data;
 
+  /* Timing-safe: roda bcrypt sempre, mesmo se user não existe, pra
+     anular enumeração de email via diff de latência (A3 da auditoria). */
   const user = await findByEmail(email);
-  if (!user) {
-    return res.status(401).json({ error: 'email ou senha incorretos', field: '_' });
-  }
-  const ok = await verifyPassword(user, password);
-  if (!ok) {
+  const ok = await verifyPasswordSafe(user, password);
+  if (!user || !ok) {
     return res.status(401).json({ error: 'email ou senha incorretos', field: '_' });
   }
   const tenantId = await findPrimaryTenantId(user.id);

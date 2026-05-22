@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { logger } from '../lib/logger.js';
 import { prisma } from '../lib/prisma.js';
+import { webhookLimiter } from '../lib/rateLimit.js';
 import { violationPayloadSchema } from '../schemas/violation.js';
 import { buildJobId, jobOptionsFor, violationQueue } from '../queue/violationQueue.js';
 import { isInFlight } from './_jobState.js';
@@ -23,7 +24,7 @@ export const webhookRouter: Router = Router();
  * requestId middleware. The jobId is logged alongside, so grepping either
  * one finds the full chain (HTTP → enqueue → worker).
  */
-webhookRouter.post('/webhook/violation', async (req: Request, res: Response) => {
+webhookRouter.post('/webhook/violation', webhookLimiter, async (req: Request, res: Response) => {
   const log = logger.child({ requestId: req.id });
   const parsed = violationPayloadSchema.safeParse(req.body);
 

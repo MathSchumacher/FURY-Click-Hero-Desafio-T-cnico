@@ -1,13 +1,25 @@
 import { Router, type Request, type Response } from 'express';
+import { env } from '../config/env.js';
 import { violationQueue } from '../queue/violationQueue.js';
 
 export const metricsRouter: Router = Router();
 
 /**
- * GET /metrics — Prometheus-style exposition format.
- * Plain text, no external dep. Anything that scrapes Prom can read it.
+ * GET /metrics — Prometheus exposition format.
+ *
+ * Quando METRICS_TOKEN está setado (produção), exige header
+ * `Authorization: Bearer <token>` — o Prometheus scraper configura via
+ * `bearer_token_file`. Sem o env var (dev/local), endpoint é público.
  */
-metricsRouter.get('/metrics', async (_req: Request, res: Response) => {
+metricsRouter.get('/metrics', async (req: Request, res: Response) => {
+  if (env.METRICS_TOKEN) {
+    const auth = req.header('authorization') ?? '';
+    const m = /^Bearer\s+(.+)$/i.exec(auth);
+    if (m?.[1] !== env.METRICS_TOKEN) {
+      return res.status(401).type('text/plain').send('unauthorized');
+    }
+  }
+
   const counts = await violationQueue.getJobCounts();
 
   const lines: string[] = [

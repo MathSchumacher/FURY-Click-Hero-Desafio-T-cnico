@@ -91,6 +91,23 @@ export async function verifyPassword(user: StoredUser, password: string): Promis
 }
 
 /**
+ * Hash dummy pré-computado (bcrypt cost=12) pra usar quando o user
+ * não existe — anula timing attack baseado em "sem user retornou rápido,
+ * com user retornou lento pq fez bcrypt". Constant-time entre os dois caminhos.
+ */
+const DUMMY_HASH = '$2a$12$KIXqVqUe9.Q7nVqYxLrEHO6F4hZx0p6zCJXxN0lYqJ2dRzj.dGfvO';
+
+/** Verificação constant-time: roda bcrypt mesmo se user é null. */
+export async function verifyPasswordSafe(
+  user: StoredUser | null,
+  password: string,
+): Promise<boolean> {
+  const hash = user?.passwordHash ?? DUMMY_HASH;
+  const ok = await bcrypt.compare(password, hash);
+  return ok && user !== null && user.passwordHash !== null;
+}
+
+/**
  * Tenant "atual" do user — usado no login pra montar as claims do PASETO.
  *
  * MVP: pega a primeira Membership (cada user só tem 1 tenant default por enquanto).

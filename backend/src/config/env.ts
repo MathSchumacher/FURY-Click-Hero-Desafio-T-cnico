@@ -22,6 +22,12 @@ const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REDIRECT_URI: z.string().url().optional(),
   FRONTEND_URL: z.string().url().default('http://localhost:5173'),
+  /* CORS — lista de origens permitidas separadas por vírgula. FRONTEND_URL
+     entra automaticamente; isso é pro caso de múltiplas (staging, preview). */
+  CORS_ORIGINS: z.string().optional(),
+  /* Token pra proteger /metrics em produção (Prometheus scraper passa via
+     header). Vazio = endpoint público (ok em dev). */
+  METRICS_TOKEN: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
