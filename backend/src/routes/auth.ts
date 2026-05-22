@@ -8,6 +8,12 @@ import { recordAudit } from '../lib/audit.js';
 import { consumeOAuthState, issueOAuthState, type OAuthIntent } from '../auth/oauthState.js';
 import { signToken, verifyToken, type AuthClaims } from '../auth/paseto.js';
 import { isRevoked, revokeToken } from '../auth/revocation.js';
+import bcrypt from 'bcryptjs';
+import {
+  consumeVerificationToken,
+  issueVerificationToken,
+  sendVerificationEmail,
+} from '../auth/verification.js';
 import {
   createUser,
   findByEmail,
@@ -18,6 +24,7 @@ import {
   verifyPasswordSafe,
   type GoogleProfile,
 } from '../auth/users.js';
+import { prisma } from '../lib/prisma.js';
 
 export const authRouter: Router = Router();
 
@@ -290,7 +297,7 @@ authRouter.get('/auth/google/callback', async (req: Request, res: Response) => {
   }
 });
 
-/* ── Middleware: require a valid PASETO token ── */
+/* ── Middleware: require a valid PASETO token ────────────────────── */
 export interface AuthedRequest extends Request {
   auth?: AuthClaims;
 }
@@ -324,6 +331,163 @@ export async function requireAuth(
   req.auth = claims;
   next();
 }
+
+/* ── Email verification + password reset ─────────────────────────── */
+
+const forgotSchema = z.object({ email: z.string().email().max(120) }).strict();
+const resetSchema = z
+  .object({
+    token: z.string().min(32).max(128),
+    password: z.string().min(8).max(120),
+  })
+  .strict();
+const confirmEmailSchema = z.object({ token: z.string().min(32).max(128) }).strict();
+
+/**
+ * POST /auth/forgot-password
+ *
+ * Sempre responde 200 com mensagem genérica — não revela se o email
+ * existe (anti-enumeração). Internamente: se o user existir, gera token
+ * + envia email (em dev, link aparece no log).
+ */
+authRouter.post(
+  '/auth/forgot-password',
+  authLimiter,
+  async (req: Request, res: Response) => {
+    const parsed = forgotSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'email inválido', field: 'email' });
+    }
+    const email = parsed.data.email.toLowerCase();
+    const user = await findByEmail(email);
+
+    if (user) {
+      const issued = await issueVerificationToken(user.id, 'PASSWORD_RESET');
+      const link = `${env.FRONTEND_URL}/auth/reset-password?token=${encodeURIComponent(issued.raw)}`;
+      await sendVerificationEmail({
+        to: email,
+        kind: 'password_reset',
+        link,
+        verificationId: issued.id,
+      });
+      void recordAudit({
+        action: 'USER_PASSWORD_RESET_REQUEST',
+        userId: user.id,
+        metadata: { email },
+        req,
+      });
+    }
+
+    /* Resposta uniforme — sempre 200 mesmo se user não existe */
+    return res.json({
+      ok: true,
+      message: 'Se houver conta com esse email, enviamos um link de reset.',
+    });
+  },
+);
+
+/**
+ * POST /auth/reset-password
+ *
+ * Body: { token, password }. Consome o token, atualiza passwordHash,
+ * marca emailVerified=true (provar acesso ao email serve como verificação
+ * implícita), revoga sessions ativas via increment de uma column? Não,
+ * cobertura é ter o user trocar senha + deslogar manualmente.
+ */
+authRouter.post('/auth/reset-password', authLimiter, async (req: Request, res: Response) => {
+  const parsed = resetSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    return res.status(400).json({
+      error: issue?.message ?? 'payload inválido',
+      field: typeof issue?.path[0] === 'string' ? issue.path[0] : '_',
+    });
+  }
+  const { token, password } = parsed.data;
+  const userId = await consumeVerificationToken(token, 'PASSWORD_RESET');
+  if (!userId) {
+    return res.status(400).json({ error: 'token inválido ou expirado', field: 'token' });
+  }
+
+  const passwordHash = await bcrypt.hash(password, 12);
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash, emailVerified: true },
+  });
+
+  void recordAudit({
+    action: 'USER_PASSWORD_RESET_COMPLETE',
+    userId,
+    req,
+  });
+
+  return res.json({ ok: true });
+});
+
+/**
+ * POST /auth/verify-email/request
+ *
+ * Gera token de verificação pro user autenticado e envia por email.
+ * Idempotent — invalida tokens anteriores (do mesmo propósito) ao criar.
+ */
+authRouter.post(
+  '/auth/verify-email/request',
+  requireAuth,
+  async (req: AuthedRequest, res: Response) => {
+    const claims = req.auth;
+    if (!claims) return res.status(401).json({ error: 'não autenticado' });
+    if (!claims.email) return res.status(400).json({ error: 'email ausente no token' });
+
+    const issued = await issueVerificationToken(claims.sub, 'EMAIL_VERIFICATION');
+    const link = `${env.FRONTEND_URL}/auth/verify-email?token=${encodeURIComponent(issued.raw)}`;
+    await sendVerificationEmail({
+      to: claims.email,
+      kind: 'verify_email',
+      link,
+      verificationId: issued.id,
+    });
+    void recordAudit({
+      action: 'USER_EMAIL_VERIFY_REQUEST',
+      userId: claims.sub,
+      tenantId: claims.tenantId,
+      metadata: { email: claims.email },
+      req,
+    });
+
+    return res.json({ ok: true, message: 'Email enviado.' });
+  },
+);
+
+/**
+ * POST /auth/verify-email/confirm
+ *
+ * Body: { token } — público (token serve como auth implícito).
+ * Marca user.emailVerified=true.
+ */
+authRouter.post(
+  '/auth/verify-email/confirm',
+  authLimiter,
+  async (req: Request, res: Response) => {
+    const parsed = confirmEmailSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'token inválido', field: 'token' });
+    }
+    const userId = await consumeVerificationToken(parsed.data.token, 'EMAIL_VERIFICATION');
+    if (!userId) {
+      return res.status(400).json({ error: 'token inválido ou expirado', field: 'token' });
+    }
+    await prisma.user.update({
+      where: { id: userId },
+      data: { emailVerified: true },
+    });
+    void recordAudit({
+      action: 'USER_EMAIL_VERIFY_COMPLETE',
+      userId,
+      req,
+    });
+    return res.json({ ok: true });
+  },
+);
 
 /**
  * POST /auth/logout
