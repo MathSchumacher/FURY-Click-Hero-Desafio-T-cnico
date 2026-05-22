@@ -18,6 +18,15 @@
 
 <p><em>A landing page completa do FURY — construída em volta do core do desafio pra dar contexto de produto real (Vite + React + GSAP + R3F + Clash Display/Satoshi).</em></p>
 
+### 🌐 Demo ao vivo
+
+| | URL | O que tem |
+|---|---|---|
+| 🎨 **Frontend** | **[fury-project.netlify.app](https://fury-project.netlify.app/)** | Landing page completa + login + dashboard pós-login (Netlify) |
+| ⚙️ **Backend API** | **[fury-click-hero-desafio-t-cnico.onrender.com](https://fury-click-hero-desafio-t-cnico.onrender.com/health)** | Express + BullMQ + worker (Render) — clique no link pra ver `/health` |
+
+<sub>⏱ Primeira requisição depois de ~15 min ocioso pode demorar 30–50s — Render free tier hiberna a instância. Um GitHub Actions cron pinga `/health` a cada 10 min pra manter quente. Stack: **Netlify** (frontend estático) · **Render** (API + worker Node) · **Upstash** (Redis serverless).</sub>
+
 </div>
 
 ---

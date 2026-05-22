@@ -1,0 +1,27 @@
+name: keepalive
+
+# Render free tier desliga a instância após 15 min de inatividade.
+# Esse cron pinga /health a cada 10 min pra manter ela quente — primeira
+# requisição do avaliador volta em ~50ms em vez de cold-start de 50s.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping /health
+        env:
+          BACKEND_URL: https://fury-click-hero-desafio-t-cnico.onrender.com
+        run: |
+          echo "Pinging $BACKEND_URL/health"
+          STATUS=$(curl -fsS --max-time 30 -o /tmp/body -w "%{http_code}" "$BACKEND_URL/health" || echo "fail")
+          echo "Status: $STATUS"
+          cat /tmp/body 2>/dev/null || true
+          # Não falha o job se o ping falhar — não queremos email do GitHub a cada vez
+          # que o Render piscar. O importante é só manter a instância quente.
+          exit 0

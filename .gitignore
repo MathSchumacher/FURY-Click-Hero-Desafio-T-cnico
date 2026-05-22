@@ -11,6 +11,3 @@ coverage
 
 # Local agent skills (machine-specific, not part of the project)
 .agents/
-
-# Vite + frontend build artifacts
-frontend/dist
