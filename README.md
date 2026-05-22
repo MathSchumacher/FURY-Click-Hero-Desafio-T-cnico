@@ -7,7 +7,7 @@
 **Mini-API event-driven em Node.js + TypeScript: webhook → BullMQ → Worker → status.**
 
 [![CI](https://github.com/MathSchumacher/FURY-Click-Hero-Desafio-T-cnico/actions/workflows/ci.yml/badge.svg)](https://github.com/MathSchumacher/FURY-Click-Hero-Desafio-T-cnico/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-57%20%2B%206%20E2E-success)](backend/src)
+[![Tests](https://img.shields.io/badge/tests-94%20%2B%206%20E2E-success)](backend/src)
 [![Coverage](https://img.shields.io/badge/coverage-97%25-success)](backend/vitest.config.ts)
 [![Type](https://img.shields.io/badge/TypeScript-strict-blue)](backend/tsconfig.json)
 [![Lint](https://img.shields.io/badge/ESLint-strict--type--checked-blueviolet)](backend/eslint.config.mjs)
@@ -25,7 +25,7 @@
 | 🎨 **Frontend** | **[fury-project.netlify.app](https://fury-project.netlify.app/)** | Landing page completa + login + dashboard pós-login (Netlify) |
 | ⚙️ **Backend API** | **[fury-click-hero-desafio-t-cnico.onrender.com](https://fury-click-hero-desafio-t-cnico.onrender.com/health)** | Express + BullMQ + worker (Render) — clique no link pra ver `/health` |
 
-<sub>⏱ Primeira requisição depois de ~15 min ocioso pode demorar 30–50s — Render free tier hiberna a instância. Um GitHub Actions cron pinga `/health` a cada 10 min pra manter quente. Stack: **Netlify** (frontend estático) · **Render** (API + worker Node) · **Upstash** (Redis serverless).</sub>
+<sub>⏱ Primeira requisição depois de ~15 min ocioso pode demorar 30–50s — Render free tier hiberna a instância. Um GitHub Actions cron pinga `/health` a cada 10 min pra manter quente. Stack: **Netlify** (frontend estático) · **Render** (API + worker Node) · **Neon** (Postgres serverless) · **Upstash** (Redis serverless) · **Google OAuth**.</sub>
 
 </div>
 
@@ -38,7 +38,8 @@
 | **Node.js** | `>= 20.x` | runtime do backend + frontend (testado em 20 LTS e 22) |
 | **npm** | `>= 10.x` | vem com Node 20+ |
 | **Docker** | `>= 24` *(opcional)* | sobe Redis local com 1 comando — **ou** use Upstash setando `REDIS_URL` |
-| **Redis** | `>= 6` | persistência da fila BullMQ (local via Docker · cloud via Upstash · qualquer Redis-compat) |
+| **Redis** | `>= 6` | fila BullMQ (local via Docker · cloud via Upstash · qualquer Redis-compat) |
+| **Postgres** | `>= 14` | persistência relacional (users, tenants, violations) — local **ou** [Neon](https://neon.tech) free tier setando `DATABASE_URL` |
 
 ---
 
@@ -49,6 +50,7 @@
 - [Onde testar cada requisito](#-onde-testar-cada-requisito-acesso-rápido)
 - [Arquitetura do núcleo](#-arquitetura-do-núcleo-event-driven)
 - [Endpoints](#-endpoints)
+- [Plataforma SaaS completa](#-plataforma-saas-completa)
 - [Testes (XP Gate)](#-testes-xp-gate)
 - [Variáveis de ambiente](#-variáveis-de-ambiente)
 - [Severity-driven retry](#-severity-driven-retry-extra-dentro-do-tema)
@@ -118,7 +120,7 @@ curl -X POST http://localhost:3001/webhook/violation \
 
 ```bash
 cd backend
-npm test                 # 57 testes unit/integration (~5s)
+npm test                 # 94 testes unit/integration (~5s)
 npm run test:coverage    # 97% coverage no núcleo do desafio
 npm run check            # XP gate completo: lint + typecheck + format + test
 ```
@@ -138,61 +140,82 @@ npm run check            # XP gate completo: lint + typecheck + format + test
 
 ---
 
-## 🎯 Arquitetura do núcleo (event-driven)
+## 🎯 Arquitetura (event-driven + persistência relacional)
 
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Meta as Meta Ads<br/>(ou /webhook/violation)
+    participant API as Express API
+    participant DB as Postgres<br/>(Neon)
+    participant Queue as BullMQ<br/>(Upstash Redis)
+    participant Worker
+    participant Up as JSONPlaceholder<br/>(upstream stub)
+
+    Meta->>API: POST /webhook/violation { adId, tenantId, ... }
+    API->>API: Zod .strict() valida payload<br/>(400 se inválido)
+    API->>DB: Tenant.findFirst (id OU slug)<br/>(404 se inexistente)
+    API->>Queue: queue.getJob(jobId) — checa in-flight
+    alt já existe e está active/waiting
+        API-->>Meta: 200 { deduplicated: true }
+    else novo job
+        API->>DB: Violation.upsert (status=QUEUED)
+        API->>Queue: queue.add('takedown', payload, jobOptionsFor(severity))
+        API-->>Meta: 202 { jobId, status: queued }
+    end
+
+    Queue->>Worker: dispatch
+    Worker->>DB: Violation.update (status=ACTIVE, attempts++)
+    Worker->>Up: fetch (AbortController · timeout 5s)
+    alt 2xx
+        Up-->>Worker: 200 OK
+        Worker->>DB: Violation.update (status=COMPLETED, upstreamStatus, latencyMs)
+        Worker-->>Queue: returnvalue
+    else 4xx / 5xx / timeout
+        Up-->>Worker: throw
+        Worker-->>Queue: throw → retry com backoff 1s/2s/4s
+        Note over Worker,Queue: até maxAttempts (3 default, 5 pra CRITICAL)
+        Worker->>DB: Violation.update (status=FAILED, errorMessage)<br/>somente após retries esgotados
+    end
+
+    Note over API,DB: GET /jobs/:id lê do Postgres<br/>(persistente, sem TTL)
 ```
-        ┌──────────────────────┐
-        │  Meta Ads (simulado) │
-        └──────────┬───────────┘
-                   ▼
-        POST /webhook/violation          ← Express + Zod + correlation id
-                   │  (400 se inválido)
-                   ▼
-        buildJobId = `${tenantId}:${adId}`
-                   │
-                   ▼  [idempotency check]
-                   │  in-flight? → 200 { deduplicated: true }
-                   ▼  ─────────── não? ──────────
-        queue.add('takedown', payload, jobOptionsFor(severity))
-                   │
-                   ▼
-   ╔═══════════════════════════════════╗
-   ║   BullMQ Queue (Redis-backed)     ║
-   ║   - persistence em Redis          ║
-   ║   - jobId determinístico = dedup  ║
-   ╚══════════════┬════════════════════╝
-                  ▼
-   ┌──────────────────────────────────┐
-   │ Worker (concurrency configurável)│
-   │                                  │
-   │  callUpstream(JSONPlaceholder)   │  ← AbortController timeout 5s
-   │  ├─ 2xx  → success               │
-   │  ├─ 4xx  → throw → BullMQ retry  │
-   │  ├─ 5xx  → throw → BullMQ retry  │
-   │  └─ to   → throw → BullMQ retry  │
-   │                                  │
-   │  Backoff exponencial: 1s, 2s, 4s │
-   │  Max attempts: 3 default         │
-   │       (severity escala 3→5)      │
-   └──────────────┬───────────────────┘
-                  ▼
-        GET /jobs/:id  →  { jobId, status, attempts, result, error }
-```
+
+### Camadas
+
+| Camada | Tecnologia | Papel |
+|---|---|---|
+| **Fila** | BullMQ + Upstash Redis | jobs ativos · retry · backoff · idempotência via jobId |
+| **Persistência relacional** | Neon Postgres + Prisma | users · tenants · memberships · violations history · settings |
+| **Sessão** | PASETO V4 (Ed25519) | tokens assinados · claims `{ sub, email, tenantId }` |
+| **OAuth** | Google (intent-separated) | login só aceita user existente · register cria/vincula |
+| **Worker** | mesmo processo do API | concurrency configurável · DB update best-effort |
+| **Frontend** | Vite + React + GSAP | landing + auth + dashboard ao vivo (polling 4–5s) |
 
 ---
 
 ## 📑 Endpoints
 
-| Método | Path | Função | Cobertura de teste |
+### Core do desafio
+| Método | Path | Função | Cobertura |
 |---|---|---|---|
-| `POST` | **`/webhook/violation`** | Recebe webhook + valida + enfileira | unit + integration + E2E real |
-| `GET` | **`/jobs/:id`** | Status do job no shape do desafio | unit + integration + E2E real |
+| `POST` | **`/webhook/violation`** | Valida payload + checa tenant + upsert Violation + enfileira | unit + integration + E2E real |
+| `GET` | **`/jobs/:id`** | Status do job no shape do desafio (lê do Postgres) | unit + integration + E2E real |
 | `GET` | `/jobs/failed` | Dead-letter inspection (jobs que esgotaram retries) | unit + integration |
-| `GET` | `/health` | Health check com Redis ping + queue counts + uptime | unit + integration |
+| `GET` | `/health` | Redis ping + queue counts + uptime | unit + integration |
 | `GET` | `/metrics` | Prometheus exposition format | unit + integration |
-| `POST` | `/auth/register` | *(bonus, fora do desafio)* | — |
-| `POST` | `/auth/login` | *(bonus, fora do desafio)* | — |
-| `GET` | `/auth/me` | *(bonus, fora do desafio)* | — |
+
+### Plataforma SaaS (multi-tenant)
+| Método | Path | Função | Cobertura |
+|---|---|---|---|
+| `POST` | `/auth/register` | Cria User + Tenant + Membership OWNER (transação atômica) | integration |
+| `POST` | `/auth/login` | PASETO V4.public + tenantId nas claims | integration |
+| `GET` | `/auth/me` | Devolve user logado + tenantId | integration |
+| `GET` | `/auth/google?intent=login\|register` | Inicia OAuth flow (intent via state) | unit |
+| `GET` | `/auth/google/callback` | Recebe code → verifica id_token → find-or-create | unit |
+| `GET` | `/tenants/me` | Tenant info + role do user logado (404/403 defensivos) | integration |
+| `GET` | `/tenants/me/stats` | Agregação por status + severity pra dashboard | integration |
+| `GET` | `/tenants/me/violations` | Histórico paginado + filtros por status/severity | integration |
 
 ### Payload exato do desafio
 
@@ -226,26 +249,65 @@ Schema é **`.strict()`** — campos extras viram `400` automaticamente.
 }
 ```
 
-`status` ∈ `waiting · active · delayed · completed · failed · waiting-children` · `404` se job não existir.
+`status` ∈ `queued · active · completed · failed` · `404` se job não existir no DB.
+
+---
+
+## 🚀 Plataforma SaaS completa
+
+O backend do desafio cresceu pra um produto real multi-tenant. Dá pra criar conta, conectar Google, simular violations pela UI, e ver tudo persistindo em Postgres.
+
+### Schema (Prisma · 5 tabelas + 5 enums)
+
+```
+User ─┬─ Membership ──┬─ Tenant ──┬─ Integration  (Meta/Google/TikTok · fake OAuth)
+      │  (role)       │           ├─ Violation    (histórico permanente)
+      │               │           └─ TenantSettings (autoTakedown, thresholdHigh)
+      └─ googleId? avatarUrl?
+```
+
+### Dashboard ao vivo · zero mock
+
+Após login, [/dashboard](https://fury-project.netlify.app/dashboard) consome **5 endpoints reais** via polling 4-5s:
+
+| Painel | Endpoint | O que mostra |
+|---|---|---|
+| 4 quick stats cards | `GET /tenants/me/stats` | em-processamento, concluídos, total, falhas |
+| Simulate Violation form | `POST /webhook/violation` + `GET /jobs/:id` | dispara webhook real + timeline animada `queued → active → completed/failed` (polling 800ms) |
+| Recent Violations list | `GET /tenants/me/violations?limit=8` | últimas 8 violations com severity pill e status badge |
+| Severity Donut | `GET /tenants/me/stats` (bySeverity) | distribuição LOW/MEDIUM/HIGH/CRITICAL em donut SVG |
+| Connections Health | `GET /health` | Redis · BullMQ Worker · Backend uptime + ping latency |
+
+### Auth: PASETO V4 + Google OAuth (intent-separated)
+
+- **PASETO V4.public** com Ed25519 (em vez de JWT — sem footguns de `alg: none`)
+- **bcryptjs** cost 12 pra senhas
+- **Google OAuth** com fluxos distintos:
+  - Login page → `intent=login`: rejeita user inexistente com mensagem amigável
+  - Register page → `intent=register`: cria User + Tenant + Membership OWNER (transação atômica) ou vincula googleId se email já existe
+- `tenantId` viaja nas claims do PASETO — middlewares evitam queries extra
 
 ---
 
 ## 🧪 Testes (XP Gate)
 
-### 57 testes em 11 arquivos · 97% coverage
+### 94 testes em 14 arquivos · master sempre verde
 
 | Arquivo | Cobre |
 |---|---|
 | `schemas/violation.test.ts` (7) | schema valid/invalid · ISO 8601 · strict · combinações |
 | `queue/violationQueue.test.ts` (7) | `buildJobId` · severity routing · backoff |
 | `routes/_jobState.test.ts` (3) | IN_FLIGHT_STATES + isInFlight |
-| `routes/webhook.test.ts` (8) | POST integration · 202/400/200 dedup |
-| `routes/jobs.test.ts` (4) | GET shape pra cada estado |
+| `routes/webhook.test.ts` (12) | POST integration · 202/400/200/404 · tenant validation · upsert · slug/id resolution |
+| `routes/jobs.test.ts` (5) | GET shape pra cada status (lê do Postgres) |
+| `routes/tenants.test.ts` (17) | `/tenants/me` · `/stats` (agregações) · `/violations` (paginação + filtros) · isolamento entre tenants |
 | `routes/health.test.ts` (3) | redis up/down + queue counts |
 | `routes/deadletter.test.ts` (4) | listagem failed + limit + cap |
 | `routes/metrics.test.ts` (4) | formato Prometheus + uptime |
 | `worker/upstream.test.ts` (5) | 2xx · 4xx · 5xx · timeout · network |
-| `worker/processor.test.ts` (4) | propagação UpstreamError + TakedownResult |
+| `worker/processor.test.ts` (8) | propagação UpstreamError + writes em Violation (ACTIVE/COMPLETED) |
+| `worker/onFailure.test.ts` (4) | handler de retries esgotados → Violation FAILED |
+| `auth/users.google.test.ts` (7) | findOrCreateGoogleUser (3 cenários) + findGoogleUser (lookup-only) |
 | `lib/requestId.test.ts` (3) | correlation id (gerado / cliente / inválido) |
 | **`e2e.test.ts` (6)** | **end-to-end real com Redis (testcontainers) + Worker live** |
 
@@ -287,22 +349,42 @@ Executa em sequência:
 ```bash
 # backend/.env
 PORT=3001
+NODE_ENV=development
 QUEUE_NAME=ad-processing
 WORKER_CONCURRENCY=5
 
-# Redis local (Docker)
+# === Redis ===
+# Local (Docker)
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 REDIS_PASSWORD=
-# OU Upstash:
+# OU Upstash (TLS):
 # REDIS_URL=rediss://default:<password>@<endpoint>.upstash.io:6379
 
-# Upstream (desafio usa JSONPlaceholder)
+# === Postgres (Neon free tier) ===
+# DATABASE_URL = pooled (runtime); DIRECT_URL = direct (migrations)
+DATABASE_URL=postgresql://user:pwd@<endpoint>-pooler.region.neon.tech/neondb?sslmode=require&connect_timeout=30
+DIRECT_URL=postgresql://user:pwd@<endpoint>.region.neon.tech/neondb?sslmode=require&connect_timeout=30
+
+# === Google OAuth (opcional — backend retorna 503 nas rotas /auth/google se faltar) ===
+GOOGLE_CLIENT_ID=<seu-client-id>.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-<seu-secret>
+GOOGLE_REDIRECT_URI=http://localhost:3001/auth/google/callback
+FRONTEND_URL=http://localhost:5173
+
+# === Upstream ===
 UPSTREAM_URL=https://jsonplaceholder.typicode.com/posts/1
 UPSTREAM_TIMEOUT_MS=5000
 ```
 
-Todas validadas via Zod em [backend/src/config/env.ts](backend/src/config/env.ts) — boot falha cedo se inválidas.
+Todas validadas via Zod em [backend/src/config/env.ts](backend/src/config/env.ts) — boot falha cedo se inválidas. Veja [backend/.env.example](backend/.env.example) pra template completo.
+
+**`frontend/.env`**:
+```bash
+# Em dev fica vazio (Vite proxy /api → localhost:3001).
+# Em prod (Netlify): apontar pra Render.
+VITE_API_URL=https://fury-click-hero-desafio-t-cnico.onrender.com
+```
 
 ---
 
