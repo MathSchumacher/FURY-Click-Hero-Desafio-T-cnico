@@ -74,10 +74,12 @@ vi.mock('../lib/prisma.js', () => ({
 }));
 
 type FindOrCreateFn = typeof import('./users.js').findOrCreateGoogleUser;
+type FindFn = typeof import('./users.js').findGoogleUser;
 let findOrCreateGoogleUser: FindOrCreateFn;
+let findGoogleUser: FindFn;
 
 beforeAll(async () => {
-  ({ findOrCreateGoogleUser } = await import('./users.js'));
+  ({ findOrCreateGoogleUser, findGoogleUser } = await import('./users.js'));
 });
 
 beforeEach(() => {
@@ -152,5 +154,48 @@ describe('findOrCreateGoogleUser', () => {
 
     const { user } = await findOrCreateGoogleUser(upperProfile);
     expect(user.id).toBe('u_lower'); /* matched by lowercased email */
+  });
+});
+
+describe('findGoogleUser (lookup-only, sem criar)', () => {
+  it('retorna user existente quando googleId bate', async () => {
+    fakeUsersByGoogleId.set('goog_xxx', {
+      id: 'u_existing',
+      email: 'matheus@example.com',
+      name: 'Matheus',
+      googleId: 'goog_xxx',
+      avatarUrl: null,
+      passwordHash: null,
+    });
+    fakeMemberships.set('u_existing', 't_existing');
+
+    const result = await findGoogleUser(baseProfile);
+    expect(result).not.toBeNull();
+    expect(result?.user.id).toBe('u_existing');
+    expect(result?.tenantId).toBe('t_existing');
+  });
+
+  it('retorna user existente quando email bate (sem googleId vinculado ainda)', async () => {
+    fakeUsersByEmail.set('matheus@example.com', {
+      id: 'u_local',
+      email: 'matheus@example.com',
+      name: 'Matheus',
+      googleId: null,
+      avatarUrl: null,
+      passwordHash: 'pwd',
+    });
+    fakeMemberships.set('u_local', 't_local');
+
+    const result = await findGoogleUser(baseProfile);
+    expect(result?.user.id).toBe('u_local');
+  });
+
+  it('retorna null quando user não existe (NÃO cria)', async () => {
+    const result = await findGoogleUser(baseProfile);
+    expect(result).toBeNull();
+    /* confirma que nada foi criado */
+    expect(fakeUsersByEmail.size).toBe(0);
+    expect(fakeUsersByGoogleId.size).toBe(0);
+    expect(fakeMemberships.size).toBe(0);
   });
 });

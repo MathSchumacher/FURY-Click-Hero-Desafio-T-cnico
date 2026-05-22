@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthLayout } from '../components/auth/AuthLayout';
 import { AuthField } from '../components/auth/AuthField';
-import { login, GOOGLE_SIGN_IN_URL } from '../lib/auth';
+import { login, getGoogleSignInUrl } from '../lib/auth';
 
 export default function LoginPage(): JSX.Element {
   const nav = useNavigate();
@@ -114,7 +114,7 @@ export default function LoginPage(): JSX.Element {
         <div className="auth-form__divider"><span>ou continue com</span></div>
 
         <div className="auth-form__oauth">
-          <a href={GOOGLE_SIGN_IN_URL} className="oauth-btn oauth-btn--full">
+          <a href={getGoogleSignInUrl('login')} className="oauth-btn oauth-btn--full">
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
               <path d="M22.5 12.275c0-.766-.069-1.503-.197-2.21H12v4.185h5.892c-.254 1.37-1.025 2.529-2.184 3.308v2.748h3.535c2.07-1.906 3.257-4.713 3.257-8.031z" fill="#4285F4"/>
               <path d="M12 23c2.95 0 5.422-.978 7.23-2.65l-3.535-2.749c-.98.658-2.235 1.046-3.695 1.046-2.843 0-5.252-1.92-6.111-4.5H2.245v2.825C4.043 20.612 7.756 23 12 23z" fill="#34A853"/>

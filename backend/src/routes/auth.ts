@@ -7,6 +7,7 @@ import { signToken, verifyToken, type AuthClaims } from '../auth/paseto.js';
 import {
   createUser,
   findByEmail,
+  findGoogleUser,
   findOrCreateGoogleUser,
   findPrimaryTenantId,
   publicView,
@@ -117,20 +118,33 @@ function googleClient(): OAuth2Client | null {
 }
 
 /**
- * GET /auth/google
+ * Intent passada via query (?intent=login|register) e propagada via state
+ * do OAuth de volta no callback. Distingue:
+ *   - login: só loga users existentes; novos → erro account_not_found
+ *   - register: cria User+Tenant se não existe, ou loga + vincula se já
+ */
+type AuthIntent = 'login' | 'register';
+function parseIntent(raw: unknown): AuthIntent {
+  return raw === 'register' ? 'register' : 'login';
+}
+
+/**
+ * GET /auth/google?intent=login|register
  *
  * Inicia o fluxo OAuth: redireciona o user pro consentimento do Google.
- * Após consentir, Google chama de volta /auth/google/callback?code=...
+ * O `intent` é gravado no state pra sobreviver ao round-trip.
  */
-authRouter.get('/auth/google', (_req: Request, res: Response) => {
+authRouter.get('/auth/google', (req: Request, res: Response) => {
   const client = googleClient();
   if (!client) {
     return res.status(503).json({ error: 'Google sign-in não está configurado neste ambiente.' });
   }
+  const intent = parseIntent(req.query.intent);
   const url = client.generateAuthUrl({
     access_type: 'online',
     scope: ['openid', 'email', 'profile'],
     prompt: 'select_account',
+    state: intent,
   });
   res.redirect(url);
 });
@@ -158,6 +172,8 @@ authRouter.get('/auth/google/callback', async (req: Request, res: Response) => {
     return;
   }
 
+  const intent: AuthIntent = parseIntent(req.query.state);
+
   try {
     const { tokens } = await client.getToken(code);
     if (!tokens.id_token) {
@@ -179,13 +195,25 @@ authRouter.get('/auth/google/callback', async (req: Request, res: Response) => {
       avatarUrl: payload.picture ?? null,
     };
 
-    const { user, tenantId } = await findOrCreateGoogleUser(profile);
-    const pub = publicView(user);
+    let resolved: { user: import('@prisma/client').User; tenantId: string } | null;
+    if (intent === 'login') {
+      /* Login: só aceita user existente. Não cria, não vincula silenciosamente. */
+      resolved = await findGoogleUser(profile);
+      if (!resolved) {
+        res.redirect(`${env.FRONTEND_URL}/auth/callback?error=account_not_found`);
+        return;
+      }
+    } else {
+      /* Register: cria User+Tenant se novo, ou vincula googleId se email já existe. */
+      resolved = await findOrCreateGoogleUser(profile);
+    }
+
+    const pub = publicView(resolved.user);
     const token = await signToken({
       sub: pub.id,
       name: pub.name,
       email: pub.email,
-      tenantId,
+      tenantId: resolved.tenantId,
     });
 
     res.redirect(`${env.FRONTEND_URL}/auth/callback?token=${encodeURIComponent(token)}`);

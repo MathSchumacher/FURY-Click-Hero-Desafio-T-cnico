@@ -57,12 +57,16 @@ export default function AuthCallback(): JSX.Element {
         return 'Não conseguimos validar sua identidade no Google. Tente outra vez.';
       case 'not_configured':
         return 'Google sign-in não está configurado neste ambiente.';
+      case 'account_not_found':
+        return 'Não encontramos conta FURY vinculada a esse Google. Crie sua conta primeiro.';
       case 'no_token':
         return 'Resposta inválida do servidor (sem token). Tente novamente.';
       default:
         return `Algo deu errado: ${error}`;
     }
   })();
+
+  const isAccountNotFound = error === 'account_not_found';
 
   return (
     <div
@@ -87,11 +91,24 @@ export default function AuthCallback(): JSX.Element {
           </>
         ) : (
           <>
-            <h1 style={{ marginBottom: 12 }}>Não conseguimos fazer login</h1>
+            <h1 style={{ marginBottom: 12 }}>
+              {isAccountNotFound ? 'Conta não encontrada' : 'Não conseguimos fazer login'}
+            </h1>
             <p style={{ color: 'var(--c-text-dim)', marginBottom: 24 }}>{errorMessage}</p>
-            <Link to="/login" className="btn btn--primary">
-              Voltar pro login
-            </Link>
+            {isAccountNotFound ? (
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <Link to="/register" className="btn btn--primary">
+                  Criar conta com Google
+                </Link>
+                <Link to="/login" className="btn btn--ghost">
+                  Voltar pro login
+                </Link>
+              </div>
+            ) : (
+              <Link to="/login" className="btn btn--primary">
+                Voltar pro login
+              </Link>
+            )}
           </>
         )}
       </div>

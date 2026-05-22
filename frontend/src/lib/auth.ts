@@ -25,8 +25,12 @@ type AuthResponse = {
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
 
 /* URL pra iniciar o fluxo Google OAuth. Usa full URL em prod (browser
-   navega pro backend), e /api em dev pro Vite proxy cuidar. */
-export const GOOGLE_SIGN_IN_URL = API_BASE ? `${API_BASE}/auth/google` : '/api/auth/google';
+   navega pro backend), e /api em dev pro Vite proxy cuidar.
+   `intent` distingue login (só user existente) de register (cria/vincula). */
+export function getGoogleSignInUrl(intent: 'login' | 'register'): string {
+  const base = API_BASE ? `${API_BASE}/auth/google` : '/api/auth/google';
+  return `${base}?intent=${intent}`;
+}
 
 /** Salva token + user vindos do callback OAuth (sem fazer login com senha). */
 export function setSession(token: string, user: AuthUser): void {

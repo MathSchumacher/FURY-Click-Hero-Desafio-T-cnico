@@ -124,6 +124,32 @@ export type GoogleProfile = {
   avatarUrl?: string | null;
 };
 
+/**
+ * Lookup-only do user por googleId OU email. Não cria nada.
+ * Usado no fluxo de "Entrar com Google" (Login page) — se não acha,
+ * frontend mostra "conta não encontrada, registre-se primeiro".
+ *
+ * NÃO faz auto-link de googleId pra email existente — isso só rola no
+ * intent=register pra evitar takeover silencioso pelo botão de login.
+ */
+export async function findGoogleUser(
+  profile: GoogleProfile,
+): Promise<{ user: StoredUser; tenantId: string } | null> {
+  const lowerEmail = profile.email.toLowerCase();
+
+  const byGoogleId = await prisma.user.findUnique({ where: { googleId: profile.googleId } });
+  if (byGoogleId) {
+    const tenantId = await findPrimaryTenantId(byGoogleId.id);
+    return tenantId ? { user: byGoogleId, tenantId } : null;
+  }
+  const byEmail = await prisma.user.findUnique({ where: { email: lowerEmail } });
+  if (byEmail) {
+    const tenantId = await findPrimaryTenantId(byEmail.id);
+    return tenantId ? { user: byEmail, tenantId } : null;
+  }
+  return null;
+}
+
 export async function findOrCreateGoogleUser(
   profile: GoogleProfile,
 ): Promise<{ user: StoredUser; tenantId: string }> {
