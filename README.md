@@ -1,6 +1,8 @@
 <div align="center">
 
-# 🔥 FURY · Tech Challenge
+<img src="docs/logo.webp" alt="FURY" width="320" />
+
+# Tech Challenge
 
 **Mini-API event-driven em Node.js + TypeScript: webhook → BullMQ → Worker → status.**
 
