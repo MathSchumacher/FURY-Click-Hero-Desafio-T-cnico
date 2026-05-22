@@ -45,6 +45,7 @@ export type AuthClaims = {
   sub: string; // user id
   email: string;
   name: string;
+  tenantId: string; // tenant ativo do usuário (default = workspace pessoal)
   iat?: string;
   exp?: string;
 };
@@ -59,11 +60,20 @@ export async function signToken(
   expiresIn: string = DEFAULT_EXP,
 ): Promise<string> {
   const { secretKey } = getKeys();
-  return V4.sign({ sub: claims.sub, email: claims.email, name: claims.name }, secretKey, {
-    issuer: ISSUER,
-    audience: AUDIENCE,
-    expiresIn,
-  });
+  return V4.sign(
+    {
+      sub: claims.sub,
+      email: claims.email,
+      name: claims.name,
+      tenantId: claims.tenantId,
+    },
+    secretKey,
+    {
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      expiresIn,
+    },
+  );
 }
 
 /** Verify a token and return its claims, or null if invalid/expired. */
@@ -77,12 +87,18 @@ export async function verifyToken(token: string): Promise<AuthClaims | null> {
     /* paseto returns the payload as `unknown` — narrow it safely */
     if (typeof payload !== 'object') return null;
     const p = payload;
-    if (typeof p.sub !== 'string' || typeof p.email !== 'string' || typeof p.name !== 'string')
+    if (
+      typeof p.sub !== 'string' ||
+      typeof p.email !== 'string' ||
+      typeof p.name !== 'string' ||
+      typeof p.tenantId !== 'string'
+    )
       return null;
     return {
       sub: p.sub,
       email: p.email,
       name: p.name,
+      tenantId: p.tenantId,
       iat: typeof p.iat === 'string' ? p.iat : undefined,
       exp: typeof p.exp === 'string' ? p.exp : undefined,
     };

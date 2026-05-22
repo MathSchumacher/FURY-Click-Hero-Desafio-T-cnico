@@ -1,7 +1,13 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { z } from 'zod';
 import { signToken, verifyToken, type AuthClaims } from '../auth/paseto.js';
-import { createUser, findByEmail, publicView, verifyPassword } from '../auth/users.js';
+import {
+  createUser,
+  findByEmail,
+  findPrimaryTenantId,
+  publicView,
+  verifyPassword,
+} from '../auth/users.js';
 
 export const authRouter: Router = Router();
 
@@ -29,10 +35,15 @@ authRouter.post('/auth/register', async (req: Request, res: Response) => {
   const { name, email, password } = parsed.data;
 
   try {
-    const user = await createUser(name, email, password);
+    const { user, tenant } = await createUser(name, email, password);
     const pub = publicView(user);
-    const token = await signToken({ sub: pub.id, name: pub.name, email: pub.email });
-    return res.status(201).json({ token, user: pub });
+    const token = await signToken({
+      sub: pub.id,
+      name: pub.name,
+      email: pub.email,
+      tenantId: tenant.id,
+    });
+    return res.status(201).json({ token, user: pub, tenant: { id: tenant.id, name: tenant.name, slug: tenant.slug } });
   } catch (err) {
     const e = err as Error & { status?: number; field?: string };
     return res.status(e.status ?? 500).json({
@@ -54,7 +65,7 @@ authRouter.post('/auth/login', async (req: Request, res: Response) => {
   }
   const { email, password } = parsed.data;
 
-  const user = findByEmail(email);
+  const user = await findByEmail(email);
   if (!user) {
     return res.status(401).json({ error: 'email ou senha incorretos', field: '_' });
   }
@@ -62,9 +73,23 @@ authRouter.post('/auth/login', async (req: Request, res: Response) => {
   if (!ok) {
     return res.status(401).json({ error: 'email ou senha incorretos', field: '_' });
   }
+  const tenantId = await findPrimaryTenantId(user.id);
+  if (!tenantId) {
+    /* Conta legada criada antes do tenant-auto. Não deveria acontecer com
+       schema novo, mas é seguro retornar erro claro em vez de quebrar. */
+    return res.status(409).json({
+      error: 'Conta sem workspace associado. Contate o suporte.',
+      field: '_',
+    });
+  }
   const pub = publicView(user);
-  const token = await signToken({ sub: pub.id, name: pub.name, email: pub.email });
-  return res.json({ token, user: pub });
+  const token = await signToken({
+    sub: pub.id,
+    name: pub.name,
+    email: pub.email,
+    tenantId,
+  });
+  return res.json({ token, user: pub, tenant: { id: tenantId } });
 });
 
 /* ── Middleware: require a valid PASETO token ── */
@@ -103,5 +128,10 @@ authRouter.get('/auth/me', requireAuth, (req: AuthedRequest, res: Response) => {
     res.status(401).json({ error: 'não autenticado' });
     return;
   }
-  res.json({ id: a.sub, name: a.name, email: a.email });
+  res.json({
+    id: a.sub,
+    name: a.name,
+    email: a.email,
+    tenantId: a.tenantId,
+  });
 });
