@@ -1,0 +1,214 @@
+/* ============================================================
+   FURY — Loader
+   Reator vermelho com arco orbital, anéis pulsantes e brasas.
+   Pure CSS, sem GSAP — leve, encaixa em qualquer mount.
+   ============================================================ */
+
+.fury-loader {
+  position: relative;
+  display: grid;
+  place-items: center;
+  gap: 28px;
+  isolation: isolate;
+}
+
+/* ── Fullscreen overlay ──────────────────────────────────── */
+.fury-loader--fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay, 1000);
+  min-height: 100dvh;
+  background:
+    radial-gradient(
+      circle at 50% 48%,
+      rgba(var(--c-accent-rgb), 0.10) 0%,
+      rgba(var(--c-accent-rgb), 0.03) 22%,
+      transparent 45%
+    ),
+    radial-gradient(circle at 50% 60%, #14080a 0%, var(--c-bg) 45%, #000 100%);
+  animation: furyOverlayFade 320ms var(--ease-out-quart) both;
+}
+
+@keyframes furyOverlayFade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── Stage (containement pros 4 elementos animados) ────── */
+.fury-loader__stage {
+  position: relative;
+  width: 140px;
+  height: 140px;
+}
+
+/* ── Anéis externos — energia escapando do reator ────────── */
+.fury-loader__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgba(var(--c-accent-rgb), 0.55);
+  box-shadow: var(--glow-sm);
+  animation: furyRingPulse 2200ms var(--ease-out-expo) infinite;
+  will-change: transform, opacity;
+}
+
+.fury-loader__ring--mid {
+  border-color: rgba(var(--c-accent-hot-rgb), 0.45);
+  /* offset meio ciclo — sempre tem 1 anel saindo */
+  animation-delay: -1100ms;
+}
+
+@keyframes furyRingPulse {
+  0%   { transform: scale(0.82); opacity: 0; }
+  20%  { opacity: 0.85; }
+  100% { transform: scale(1.55); opacity: 0; }
+}
+
+/* ── Núcleo — branco-quente no centro, vermelho na borda ── */
+.fury-loader__core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 56px;
+  height: 56px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 38% 32%,
+    #ffffff 0%,
+    #ffe1a0 12%,
+    #ff9446 32%,
+    #ff3d2e 60%,
+    rgba(255, 61, 46, 0.0) 100%
+  );
+  box-shadow:
+    0 0 24px rgba(var(--c-accent-rgb), 0.65),
+    0 0 56px rgba(var(--c-accent-rgb), 0.30),
+    inset 0 0 12px rgba(255, 255, 255, 0.15);
+  animation: furyCoreBreath 1400ms ease-in-out infinite;
+  will-change: transform, filter;
+}
+
+@keyframes furyCoreBreath {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    filter: brightness(1) saturate(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.12);
+    filter: brightness(1.35) saturate(1.15);
+  }
+}
+
+/* ── Arco orbital — segmento traçando ao redor do núcleo ── */
+.fury-loader__arc {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  animation: furyArcSpin 1100ms linear infinite;
+  filter: drop-shadow(0 0 6px rgba(var(--c-accent-rgb), 0.85))
+          drop-shadow(0 0 14px rgba(var(--c-accent-hot-rgb), 0.35));
+  will-change: transform;
+}
+
+.fury-loader__arc circle {
+  fill: none;
+  stroke: url(#fury-loader-grad);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  /* circumference de r=44 ≈ 276.5; mostra ~80px visível + gap longo */
+  stroke-dasharray: 80 220;
+}
+
+@keyframes furyArcSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Label monospace, fade-in atrasado, dots animados ───── */
+.fury-loader__label {
+  position: relative;
+  color: var(--c-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  opacity: 0;
+  animation: furyLabelFade 600ms 400ms var(--ease-out-quart) forwards;
+}
+
+.fury-loader__label::after {
+  content: '';
+  display: inline-block;
+  width: 1.5em;
+  text-align: left;
+  animation: furyLabelDots 1400ms steps(4, end) infinite;
+}
+
+@keyframes furyLabelFade {
+  to { opacity: 1; }
+}
+
+@keyframes furyLabelDots {
+  0%   { content: ''; }
+  25%  { content: '.'; }
+  50%  { content: '..'; }
+  75%  { content: '...'; }
+  100% { content: ''; }
+}
+
+/* ── Brasas subindo — coesão visual com OpeningSplash ──── */
+.fury-loader__embers {
+  position: absolute;
+  bottom: -60px;
+  left: 50%;
+  width: 280px;
+  height: 220px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.fury-loader__ember {
+  position: absolute;
+  bottom: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffe1a0 0%, #ff7a18 55%, transparent 100%);
+  box-shadow: 0 0 10px rgba(255, 122, 24, 0.7);
+  animation: furyEmberRise 3200ms ease-in infinite;
+  will-change: transform, opacity;
+}
+
+.fury-loader__ember:nth-child(1) { left: 28%;  animation-delay:    0ms; }
+.fury-loader__ember:nth-child(2) { left: 52%;  animation-delay:  900ms; }
+.fury-loader__ember:nth-child(3) { left: 72%;  animation-delay: 1700ms; }
+
+@keyframes furyEmberRise {
+  0%   { transform: translateY(0)    scale(0.55); opacity: 0; }
+  10%  { opacity: 1; }
+  85%  { opacity: 0.45; }
+  100% { transform: translateY(-220px) scale(0.15); opacity: 0; }
+}
+
+/* ── Variante inline (botões, headers, cantos) ────────── */
+.fury-loader--inline {
+  display: inline-grid;
+  gap: 12px;
+}
+
+.fury-loader--inline .fury-loader__stage  { width: 64px; height: 64px; }
+.fury-loader--inline .fury-loader__core   { width: 22px; height: 22px; }
+.fury-loader--inline .fury-loader__embers { display: none; }
+.fury-loader--inline .fury-loader__label  { font-size: 0.75rem; }
+
+/* ── Accessibility: reduced-motion ─────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .fury-loader__ring        { animation-duration: 4000ms; }
+  .fury-loader__core        { animation-duration: 4000ms; }
+  .fury-loader__arc         { animation: none; opacity: 0.85; }
+  .fury-loader__ember       { display: none; }
+  .fury-loader__label::after { animation-duration: 3000ms; }
+}

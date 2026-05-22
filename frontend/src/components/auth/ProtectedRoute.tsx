@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, JSX } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { FuryLoader } from '../ui/FuryLoader/FuryLoader';
 
 type Props = { children: ReactNode };
 
@@ -12,33 +13,14 @@ type Props = { children: ReactNode };
  * /auth/me em useEffect; se decidirmos logo no primeiro render, redireciona
  * pra /login antes do fetchMe completar (mata o componente, aborta a request).
  *
- * UX: mostra splash mínimo de "validando sessão" durante o loading.
+ * UX: FuryLoader fullscreen — primeiro frame que o user vê após login.
  */
 export function ProtectedRoute({ children }: Props): JSX.Element {
   const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
 
   if (loading) {
-    return (
-      <div
-        style={{
-          minHeight: '100vh',
-          display: 'grid',
-          placeItems: 'center',
-          background: 'var(--c-bg)',
-          color: 'var(--c-text-dim)',
-        }}
-      >
-        <div style={{ textAlign: 'center' }}>
-          <span
-            className="auth-form__spin"
-            aria-hidden="true"
-            style={{ width: 32, height: 32, borderWidth: 3, marginBottom: 12 }}
-          />
-          <p className="mono" style={{ fontSize: '0.85rem' }}>validando sessão…</p>
-        </div>
-      </div>
-    );
+    return <FuryLoader label="validando sessão" />;
   }
 
   if (!isAuthenticated) {
