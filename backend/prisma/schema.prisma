@@ -1,0 +1,159 @@
+// FURY · Tech Challenge — schema do banco de dados
+//
+// Postgres (Neon) + Prisma. Convive com Redis (BullMQ) — não substitui.
+// Divisão de trabalho:
+//   - Postgres aqui: dados relacionais persistentes (users, tenants, violações)
+//   - Redis: fila de jobs ativos + counters/cache
+//
+// Convenção de IDs: cuid() — opaco, ordenável, sem revelar contagens internas.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Auth — users + tenants + memberships
+// ─────────────────────────────────────────────────────────────────
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  memberships  Membership[]
+
+  @@index([createdAt])
+}
+
+model Tenant {
+  id           String          @id @default(cuid())
+  slug         String          @unique // gerado a partir do nome no register
+  name         String
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  members      Membership[]
+  integrations Integration[]
+  violations   Violation[]
+  settings     TenantSettings?
+
+  @@index([createdAt])
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model Membership {
+  userId    String
+  tenantId  String
+  role      Role     @default(MEMBER)
+  joinedAt  DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([userId, tenantId])
+  @@index([tenantId])
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Integrações com plataformas de ads (Meta, Google, TikTok)
+// MVP: "fake OAuth" persiste o registro real. Trocar por OAuth real no futuro.
+// ─────────────────────────────────────────────────────────────────
+
+enum Provider {
+  META
+  GOOGLE
+  TIKTOK
+}
+
+enum IntegrationStatus {
+  ACTIVE
+  PAUSED
+  ERROR
+}
+
+model Integration {
+  id             String            @id @default(cuid())
+  tenantId       String
+  provider       Provider
+  accountLabel   String // "Acme Moda · BM_principal"
+  externalAccountId String? // ID na plataforma externa (quando OAuth real for ligado)
+  status         IntegrationStatus @default(ACTIVE)
+  connectedAt    DateTime          @default(now())
+  lastSyncAt     DateTime?
+  tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, provider, accountLabel])
+  @@index([tenantId])
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Violações — fonte de verdade do histórico
+// Redis tem o job ativo (efêmero). Esta tabela tem o registro permanente.
+// ─────────────────────────────────────────────────────────────────
+
+enum ViolationType {
+  PROHIBITED_TERM
+  BRAND_VIOLATION
+  COMPLIANCE_FAIL
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ViolationStatus {
+  QUEUED
+  ACTIVE
+  COMPLETED
+  FAILED
+}
+
+model Violation {
+  id                String          @id @default(cuid())
+  tenantId          String
+  adId              String
+  violationType     ViolationType
+  severity          Severity
+  detectedAt        DateTime
+  jobId             String // referência ao BullMQ — formato tenant__ad
+  status            ViolationStatus @default(QUEUED)
+  attempts          Int             @default(0)
+  upstreamStatus    Int?
+  upstreamLatencyMs Int?
+  errorMessage      String?
+  createdAt         DateTime        @default(now())
+  finishedAt        DateTime?
+  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, jobId])
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([severity, status])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Settings por tenant — controla auto-takedown e thresholds
+// ─────────────────────────────────────────────────────────────────
+
+model TenantSettings {
+  tenantId      String   @id
+  autoTakedown  Boolean  @default(true)
+  notifyEmail   Boolean  @default(true)
+  thresholdHigh Int      @default(3) // takedown após N violações HIGH no mesmo ad
+  updatedAt     DateTime @updatedAt
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}

@@ -12,6 +12,10 @@ const envSchema = z.object({
   UPSTREAM_URL: z.string().url().default('https://jsonplaceholder.typicode.com/posts/1'),
   UPSTREAM_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  /* Postgres (Neon) — Prisma também lê esses direto do process.env, mas
+     validar aqui faz o boot falhar cedo se vier vazio. */
+  DATABASE_URL: z.string().url().optional(),
+  DIRECT_URL: z.string().url().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
