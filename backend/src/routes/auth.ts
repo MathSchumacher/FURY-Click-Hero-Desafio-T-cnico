@@ -43,7 +43,9 @@ authRouter.post('/auth/register', async (req: Request, res: Response) => {
       email: pub.email,
       tenantId: tenant.id,
     });
-    return res.status(201).json({ token, user: pub, tenant: { id: tenant.id, name: tenant.name, slug: tenant.slug } });
+    return res
+      .status(201)
+      .json({ token, user: pub, tenant: { id: tenant.id, name: tenant.name, slug: tenant.slug } });
   } catch (err) {
     const e = err as Error & { status?: number; field?: string };
     return res.status(e.status ?? 500).json({

@@ -5,9 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * Integration tests for POST /webhook/violation.
  *
- * The queue is replaced with an in-memory fake so the tests don't require
- * Redis. We assert the route's contract: status codes, response shape,
- * Zod validation behavior, and idempotency.
+ * Queue + Prisma são substituídos por fakes em memória pra rodar sem
+ * Redis nem Postgres. Asseguramos o contrato da rota: status codes,
+ * shape do response, validação Zod, idempotência E persistência da
+ * Violation no banco.
  */
 
 type FakeJob = {
@@ -19,6 +20,8 @@ type FakeJob = {
 };
 
 const fakeJobs: Map<string, FakeJob> = new Map();
+const fakeTenants: Map<string, { id: string; slug: string }> = new Map();
+const violationUpsertSpy = vi.fn();
 
 vi.mock('../queue/violationQueue.js', async () => {
   const jobOptions =
@@ -43,8 +46,37 @@ vi.mock('../queue/violationQueue.js', async () => {
   };
 });
 
+vi.mock('../lib/prisma.js', () => ({
+  prisma: {
+    tenant: {
+      findFirst: async ({ where }: { where: { OR: { id?: string; slug?: string }[] } }) => {
+        const ors = where.OR;
+        for (const clause of ors) {
+          const key = clause.id ?? clause.slug;
+          if (typeof key === 'string') {
+            const found = fakeTenants.get(key);
+            if (found) return found;
+          }
+        }
+        return null;
+      },
+    },
+    violation: {
+      upsert: (args: unknown) => {
+        violationUpsertSpy(args);
+        return Promise.resolve({});
+      },
+    },
+  },
+}));
+
 beforeEach(() => {
   fakeJobs.clear();
+  fakeTenants.clear();
+  violationUpsertSpy.mockClear();
+  /* Tenant fake usado por quase todos os testes — slug E id batem com
+     o payload.tenantId pra que o jobId resolvido fique determinístico. */
+  fakeTenants.set('tenant_t', { id: 'tenant_t', slug: 'tenant_t' });
 });
 
 async function buildApp(): Promise<express.Express> {
@@ -155,5 +187,55 @@ describe('POST /webhook/violation', () => {
       .post('/webhook/violation')
       .send({ ...validPayload, extra: 'foo' });
     expect(res.status).toBe(400);
+  });
+
+  /* ── Novos comportamentos da Fase 1.4: tenant validation + DB write ── */
+
+  it('404 com field=tenantId quando tenantId não existe no DB', async () => {
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/webhook/violation')
+      .send({ ...validPayload, tenantId: 'tenant_inexistente' });
+    expect(res.status).toBe(404);
+    expect(res.body.field).toBe('tenantId');
+    expect(res.body.error).toMatch(/tenant_inexistente/);
+  });
+
+  it('grava Violation no banco com status QUEUED quando enfileira novo job', async () => {
+    const app = await buildApp();
+    const res = await request(app).post('/webhook/violation').send(validPayload);
+    expect(res.status).toBe(202);
+    expect(violationUpsertSpy).toHaveBeenCalledTimes(1);
+    const call = violationUpsertSpy.mock.calls[0]?.[0] as {
+      where: { tenantId_jobId: { tenantId: string; jobId: string } };
+      create: { tenantId: string; jobId: string; status: string; adId: string };
+    };
+    expect(call.where.tenantId_jobId).toEqual({
+      tenantId: 'tenant_t',
+      jobId: 'tenant_t__ad_42',
+    });
+    expect(call.create.status).toBe('QUEUED');
+    expect(call.create.adId).toBe('ad_42');
+  });
+
+  it('NÃO grava Violation duplicada quando request é deduplicado', async () => {
+    const app = await buildApp();
+    seedInFlightJob('tenant_t__ad_42', 'waiting');
+    const res = await request(app).post('/webhook/violation').send(validPayload);
+    expect(res.status).toBe(200);
+    expect(violationUpsertSpy).not.toHaveBeenCalled();
+  });
+
+  it('aceita tenantId por slug E por id (ambos resolvem o mesmo tenant)', async () => {
+    fakeTenants.set('cuid_acme_xxx', { id: 'cuid_acme_xxx', slug: 'acme' });
+    fakeTenants.set('acme', { id: 'cuid_acme_xxx', slug: 'acme' });
+    const app = await buildApp();
+    /* Envio pelo slug "acme" */
+    const res = await request(app)
+      .post('/webhook/violation')
+      .send({ ...validPayload, tenantId: 'acme' });
+    expect(res.status).toBe(202);
+    /* jobId deve usar tenant.id resolvido (cuid_acme_xxx), não o slug */
+    expect(res.body.jobId).toBe('cuid_acme_xxx__ad_42');
   });
 });

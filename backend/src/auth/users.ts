@@ -27,13 +27,14 @@ export async function findByEmail(email: string): Promise<StoredUser | null> {
 
 /** Slug URL-safe a partir do nome, com sufixo randômico curto pra evitar colisão. */
 function makeSlug(name: string): string {
-  const base = name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '') /* tira acentos */
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 32) || 'workspace';
+  const base =
+    name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '') /* tira acentos */
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 32) || 'workspace';
   const suffix = Math.random().toString(36).slice(2, 8); /* 6 chars base36 */
   return `${base}-${suffix}`;
 }
