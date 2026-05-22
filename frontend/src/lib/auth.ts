@@ -20,8 +20,13 @@ type AuthResponse = {
   user: AuthUser;
 };
 
+/* Em prod (Netlify), VITE_API_URL aponta pra https://...onrender.com.
+   Em dev, fica vazio e o proxy do Vite cuida do /api → localhost:3001. */
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
+
 async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`/api${path}`, {
+  const url = API_BASE ? `${API_BASE}${path}` : `/api${path}`;
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
