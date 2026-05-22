@@ -45,6 +45,7 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute';
 const LoginPage = lazy(() => import('./pages/Login'));
 const RegisterPage = lazy(() => import('./pages/Register'));
 const DashboardPage = lazy(() => import('./pages/Dashboard'));
+const AuthCallbackPage = lazy(() => import('./pages/AuthCallback'));
 
 function LandingPage(): JSX.Element {
   return (
@@ -79,6 +80,7 @@ export function App(): JSX.Element {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route
             path="/dashboard"
             element={

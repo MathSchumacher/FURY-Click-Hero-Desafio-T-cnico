@@ -146,22 +146,23 @@
 /* ── OAuth buttons ───────────────────────────────── */
 .auth-form__oauth {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: var(--sp-3);
 }
 .oauth-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 11px 16px;
+  gap: 10px;
+  padding: 12px 16px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--c-border);
   border-radius: var(--r-md);
   color: var(--c-text);
   font-family: var(--font-body);
   font-weight: 500;
-  font-size: 0.88rem;
+  font-size: 0.92rem;
+  text-decoration: none;
   cursor: pointer;
   transition: all var(--t-fast);
 }
@@ -173,6 +174,9 @@
 .oauth-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+.oauth-btn--full {
+  width: 100%;
 }
 
 /* ── Password strength meter ─────────────────────── */

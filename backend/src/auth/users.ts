@@ -84,6 +84,9 @@ export async function createUser(
 }
 
 export async function verifyPassword(user: StoredUser, password: string): Promise<boolean> {
+  /* Contas OAuth-only não têm passwordHash. Não dá pra "loginar com senha"
+     numa conta que nunca teve uma. */
+  if (!user.passwordHash) return false;
   return bcrypt.compare(password, user.passwordHash);
 }
 
@@ -100,4 +103,76 @@ export async function findPrimaryTenantId(userId: string): Promise<string | null
     select: { tenantId: true },
   });
   return m?.tenantId ?? null;
+}
+
+/**
+ * Sign-in via Google OAuth (find-or-create).
+ *
+ * Três cenários cobertos:
+ *  1. User existe com mesmo googleId → reuse (login simples)
+ *  2. User existe com mesmo email mas sem googleId → vincula a conta Google
+ *     (UX melhor que forçar criar nova conta com email duplicado)
+ *  3. User não existe → cria User + Tenant default + Membership OWNER
+ *     (mesma transação do register tradicional, sem passwordHash)
+ *
+ * Sempre retorna o tenant ativo pra montar as claims do PASETO.
+ */
+export type GoogleProfile = {
+  googleId: string;
+  email: string;
+  name: string;
+  avatarUrl?: string | null;
+};
+
+export async function findOrCreateGoogleUser(
+  profile: GoogleProfile,
+): Promise<{ user: StoredUser; tenantId: string }> {
+  const lowerEmail = profile.email.toLowerCase();
+
+  /* Cenário 1: já temos esse googleId */
+  const byGoogleId = await prisma.user.findUnique({ where: { googleId: profile.googleId } });
+  if (byGoogleId) {
+    const tenantId = await findPrimaryTenantId(byGoogleId.id);
+    if (!tenantId) {
+      throw Object.assign(new Error('Conta sem workspace associado.'), { status: 409 });
+    }
+    return { user: byGoogleId, tenantId };
+  }
+
+  /* Cenário 2: já existe com mesmo email, vincula o googleId */
+  const byEmail = await prisma.user.findUnique({ where: { email: lowerEmail } });
+  if (byEmail) {
+    const linked = await prisma.user.update({
+      where: { id: byEmail.id },
+      data: { googleId: profile.googleId, avatarUrl: profile.avatarUrl ?? byEmail.avatarUrl },
+    });
+    const tenantId = await findPrimaryTenantId(linked.id);
+    if (!tenantId) {
+      throw Object.assign(new Error('Conta sem workspace associado.'), { status: 409 });
+    }
+    return { user: linked, tenantId };
+  }
+
+  /* Cenário 3: usuário novo — cria User + Tenant + Membership OWNER (sem senha) */
+  const tenantName = `Workspace de ${firstNameOf(profile.name)}`;
+  const { user, tenantId } = await prisma.$transaction(async (tx) => {
+    const created = await tx.user.create({
+      data: {
+        email: lowerEmail,
+        name: profile.name,
+        googleId: profile.googleId,
+        avatarUrl: profile.avatarUrl ?? null,
+      },
+    });
+    const tenant = await tx.tenant.create({
+      data: {
+        name: tenantName,
+        slug: makeSlug(tenantName),
+        settings: { create: {} },
+        members: { create: { userId: created.id, role: 'OWNER' } },
+      },
+    });
+    return { user: created, tenantId: tenant.id };
+  });
+  return { user, tenantId };
 }

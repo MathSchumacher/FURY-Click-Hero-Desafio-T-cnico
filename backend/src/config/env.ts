@@ -16,6 +16,12 @@ const envSchema = z.object({
      validar aqui faz o boot falhar cedo se vier vazio. */
   DATABASE_URL: z.string().url().optional(),
   DIRECT_URL: z.string().url().optional(),
+  /* Google OAuth — opcionais; rotas /auth/google retornam 503 se faltar
+     algum, em vez de quebrar o boot do backend. */
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_REDIRECT_URI: z.string().url().optional(),
+  FRONTEND_URL: z.string().url().default('http://localhost:5173'),
 });
 
 const parsed = envSchema.safeParse(process.env);

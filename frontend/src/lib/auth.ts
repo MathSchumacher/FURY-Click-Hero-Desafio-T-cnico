@@ -24,6 +24,32 @@ type AuthResponse = {
    Em dev, fica vazio e o proxy do Vite cuida do /api → localhost:3001. */
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
 
+/* URL pra iniciar o fluxo Google OAuth. Usa full URL em prod (browser
+   navega pro backend), e /api em dev pro Vite proxy cuidar. */
+export const GOOGLE_SIGN_IN_URL = API_BASE ? `${API_BASE}/auth/google` : '/api/auth/google';
+
+/** Salva token + user vindos do callback OAuth (sem fazer login com senha). */
+export function setSession(token: string, user: AuthUser): void {
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  } catch {
+    /* noop */
+  }
+}
+
+/** Busca o user atual via /auth/me usando o token do localStorage. */
+export async function fetchMe(): Promise<AuthUser> {
+  const token = getToken();
+  if (!token) throw new Error('Sem token de sessão.');
+  const url = API_BASE ? `${API_BASE}/auth/me` : '/api/auth/me';
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} ao buscar /auth/me`);
+  }
+  return (await res.json()) as AuthUser;
+}
+
 async function postJson<T>(path: string, body: unknown): Promise<T> {
   const url = API_BASE ? `${API_BASE}${path}` : `/api${path}`;
   const res = await fetch(url, {

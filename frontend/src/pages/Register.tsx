@@ -2,7 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthLayout } from '../components/auth/AuthLayout';
 import { AuthField } from '../components/auth/AuthField';
-import { register } from '../lib/auth';
+import { register, GOOGLE_SIGN_IN_URL } from '../lib/auth';
 
 type Strength = { score: 0 | 1 | 2 | 3 | 4; label: string; color: string };
 
@@ -161,6 +161,20 @@ export default function RegisterPage(): JSX.Element {
             </>
           )}
         </button>
+
+        <div className="auth-form__divider"><span>ou continue com</span></div>
+
+        <div className="auth-form__oauth">
+          <a href={GOOGLE_SIGN_IN_URL} className="oauth-btn oauth-btn--full">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+              <path d="M22.5 12.275c0-.766-.069-1.503-.197-2.21H12v4.185h5.892c-.254 1.37-1.025 2.529-2.184 3.308v2.748h3.535c2.07-1.906 3.257-4.713 3.257-8.031z" fill="#4285F4"/>
+              <path d="M12 23c2.95 0 5.422-.978 7.23-2.65l-3.535-2.749c-.98.658-2.235 1.046-3.695 1.046-2.843 0-5.252-1.92-6.111-4.5H2.245v2.825C4.043 20.612 7.756 23 12 23z" fill="#34A853"/>
+              <path d="M5.889 14.147A6.594 6.594 0 015.555 12c0-.745.128-1.467.334-2.147V7.028H2.245A11.013 11.013 0 001 12c0 1.776.425 3.453 1.245 4.972l3.644-2.825z" fill="#FBBC04"/>
+              <path d="M12 5.378c1.604 0 3.04.552 4.172 1.633l3.13-3.13C17.418 2.099 14.946 1 12 1 7.756 1 4.043 3.388 2.245 7.028l3.644 2.825C6.748 7.298 9.157 5.378 12 5.378z" fill="#EA4335"/>
+            </svg>
+            Criar conta com Google
+          </a>
+        </div>
 
         <p className="auth-form__guarantee mono">
           ✓ Setup grátis · ✓ Sem cartão de crédito · ✓ Cancele quando quiser

@@ -1,12 +1,17 @@
+import { OAuth2Client } from 'google-auth-library';
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { z } from 'zod';
+import { env } from '../config/env.js';
+import { logger } from '../lib/logger.js';
 import { signToken, verifyToken, type AuthClaims } from '../auth/paseto.js';
 import {
   createUser,
   findByEmail,
+  findOrCreateGoogleUser,
   findPrimaryTenantId,
   publicView,
   verifyPassword,
+  type GoogleProfile,
 } from '../auth/users.js';
 
 export const authRouter: Router = Router();
@@ -92,6 +97,104 @@ authRouter.post('/auth/login', async (req: Request, res: Response) => {
     tenantId,
   });
   return res.json({ token, user: pub, tenant: { id: tenantId } });
+});
+
+/* ── Google OAuth — sign-in/sign-up via Google ────────────────────── */
+
+/**
+ * Singleton do OAuth2Client. Reusa configuração via env.
+ * Retorna null se credenciais não estão configuradas (rotas retornam 503).
+ */
+function googleClient(): OAuth2Client | null {
+  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET || !env.GOOGLE_REDIRECT_URI) {
+    return null;
+  }
+  return new OAuth2Client({
+    clientId: env.GOOGLE_CLIENT_ID,
+    clientSecret: env.GOOGLE_CLIENT_SECRET,
+    redirectUri: env.GOOGLE_REDIRECT_URI,
+  });
+}
+
+/**
+ * GET /auth/google
+ *
+ * Inicia o fluxo OAuth: redireciona o user pro consentimento do Google.
+ * Após consentir, Google chama de volta /auth/google/callback?code=...
+ */
+authRouter.get('/auth/google', (_req: Request, res: Response) => {
+  const client = googleClient();
+  if (!client) {
+    return res.status(503).json({ error: 'Google sign-in não está configurado neste ambiente.' });
+  }
+  const url = client.generateAuthUrl({
+    access_type: 'online',
+    scope: ['openid', 'email', 'profile'],
+    prompt: 'select_account',
+  });
+  res.redirect(url);
+});
+
+/**
+ * GET /auth/google/callback
+ *
+ * Recebe o `code` do Google, troca por tokens, verifica o ID token,
+ * find-or-create do User no banco, assina PASETO e redireciona pro frontend
+ * com `?token=...`. Em erro, redireciona com `?error=...`.
+ */
+authRouter.get('/auth/google/callback', async (req: Request, res: Response) => {
+  const client = googleClient();
+  if (!client) {
+    res.redirect(`${env.FRONTEND_URL}/auth/callback?error=not_configured`); return;
+  }
+
+  const code = typeof req.query.code === 'string' ? req.query.code : null;
+  const errorParam =
+    typeof req.query.error === 'string' ? (req.query.error) : null;
+  if (errorParam || !code) {
+    res.redirect(
+      `${env.FRONTEND_URL}/auth/callback?error=${encodeURIComponent(errorParam ?? 'no_code')}`,
+    ); return;
+  }
+
+  try {
+    const { tokens } = await client.getToken(code);
+    if (!tokens.id_token) {
+      throw new Error('Google não retornou id_token.');
+    }
+    const ticket = await client.verifyIdToken({
+      idToken: tokens.id_token,
+      audience: env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    if (!payload?.sub || !payload.email || !payload.email_verified) {
+      throw new Error('Email do Google não verificado ou payload incompleto.');
+    }
+
+    const profile: GoogleProfile = {
+      googleId: payload.sub,
+      email: payload.email,
+      name: payload.name ?? payload.email.split('@')[0] ?? 'Usuário',
+      avatarUrl: payload.picture ?? null,
+    };
+
+    const { user, tenantId } = await findOrCreateGoogleUser(profile);
+    const pub = publicView(user);
+    const token = await signToken({
+      sub: pub.id,
+      name: pub.name,
+      email: pub.email,
+      tenantId,
+    });
+
+    res.redirect(`${env.FRONTEND_URL}/auth/callback?token=${encodeURIComponent(token)}`); return;
+  } catch (err) {
+    const e = err as Error;
+    logger.error({ err: e.message }, 'auth:google:callback:failed');
+    res.redirect(
+      `${env.FRONTEND_URL}/auth/callback?error=${encodeURIComponent('google_auth_failed')}`,
+    ); return;
+  }
 });
 
 /* ── Middleware: require a valid PASETO token ── */
