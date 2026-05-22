@@ -61,15 +61,19 @@ model VerificationToken {
 }
 
 model Tenant {
-  id           String          @id @default(cuid())
-  slug         String          @unique // gerado a partir do nome no register
-  name         String
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  members      Membership[]
-  integrations Integration[]
-  violations   Violation[]
-  settings     TenantSettings?
+  id            String          @id @default(cuid())
+  slug          String          @unique // gerado a partir do nome no register
+  name          String
+  /* Secret pra HMAC-SHA256 do header X-FURY-Signature em /webhook/violation.
+     Gerado no register; rotatable. Quando WEBHOOK_REQUIRE_SIGNATURE=true,
+     requests sem assinatura válida são rejeitadas — mesmo com tenantId válido. */
+  webhookSecret String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  members       Membership[]
+  integrations  Integration[]
+  violations    Violation[]
+  settings      TenantSettings?
 
   @@index([createdAt])
 }

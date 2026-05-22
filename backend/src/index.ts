@@ -71,7 +71,17 @@ app.use(
   }),
 );
 
-app.use(express.json({ limit: '1mb' }));
+/* Captura raw body em `req.rawBody` pra que /webhook/violation possa
+   computar HMAC. Sem isso, express.json consome o stream antes do
+   middleware de signature ter chance. */
+app.use(
+  express.json({
+    limit: '1mb',
+    verify: (req, _res, buf) => {
+      (req as unknown as { rawBody?: Buffer }).rawBody = Buffer.from(buf);
+    },
+  }),
+);
 app.use(cookieParser());
 app.use(requestId);
 

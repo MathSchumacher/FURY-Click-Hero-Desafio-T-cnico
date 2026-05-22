@@ -1,10 +1,15 @@
 import { Prisma } from '@prisma/client';
 import { Router, type Request, type Response } from 'express';
+import { env } from '../config/env.js';
 import { logger } from '../lib/logger.js';
 import { prisma } from '../lib/prisma.js';
 import { webhookLimiter } from '../lib/rateLimit.js';
 import { violationPayloadSchema } from '../schemas/violation.js';
 import { buildJobId, jobOptionsFor, violationQueue } from '../queue/violationQueue.js';
+import {
+  WEBHOOK_SIGNATURE_HEADER,
+  verifySignature,
+} from '../auth/webhookSignature.js';
 
 export const webhookRouter: Router = Router();
 
@@ -43,7 +48,7 @@ webhookRouter.post('/webhook/violation', webhookLimiter, async (req: Request, re
 
   const tenant = await prisma.tenant.findFirst({
     where: { OR: [{ id: payload.tenantId }, { slug: payload.tenantId }] },
-    select: { id: true },
+    select: { id: true, webhookSecret: true },
   });
   if (!tenant) {
     log.warn({ tenantId: payload.tenantId }, 'webhook:tenant_not_found');
@@ -52,6 +57,26 @@ webhookRouter.post('/webhook/violation', webhookLimiter, async (req: Request, re
       field: 'tenantId',
       requestId: req.id,
     });
+  }
+
+  /* C5 — HMAC signature opt-in via WEBHOOK_REQUIRE_SIGNATURE.
+     - Header X-FURY-Signature: sha256=<hex>
+     - hex = HMAC-SHA256(rawBody, tenant.webhookSecret)
+     Quando flag desabilitada (default em dev/demo), webhook aceita sem
+     assinatura — preserva os curl examples do README. */
+  if (env.WEBHOOK_REQUIRE_SIGNATURE) {
+    const rawBody = (req as unknown as { rawBody?: Buffer }).rawBody;
+    const headerValue = req.header(WEBHOOK_SIGNATURE_HEADER);
+    if (!tenant.webhookSecret || !rawBody) {
+      log.warn({ tenantId: tenant.id }, 'webhook:signature_required_but_unavailable');
+      return res
+        .status(401)
+        .json({ error: 'Tenant não tem webhook secret configurado', requestId: req.id });
+    }
+    if (!verifySignature(rawBody, headerValue, tenant.webhookSecret)) {
+      log.warn({ tenantId: tenant.id }, 'webhook:invalid_signature');
+      return res.status(401).json({ error: 'Assinatura inválida', requestId: req.id });
+    }
   }
 
   const jobId = buildJobId(payload.adId, tenant.id);

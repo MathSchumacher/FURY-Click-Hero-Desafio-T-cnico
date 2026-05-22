@@ -28,6 +28,13 @@ const envSchema = z.object({
   /* Token pra proteger /metrics em produção (Prometheus scraper passa via
      header). Vazio = endpoint público (ok em dev). */
   METRICS_TOKEN: z.string().optional(),
+  /* Se true, /webhook/violation requer header X-FURY-Signature válido
+     (HMAC-SHA256 do body com webhookSecret do tenant). Default false
+     pra não quebrar curl examples do desafio. Em prod recomendado true. */
+  WEBHOOK_REQUIRE_SIGNATURE: z
+    .union([z.literal('true'), z.literal('false')])
+    .default('false')
+    .transform((v) => v === 'true'),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import type { Tenant, User } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
+import { generateWebhookSecret } from './webhookSignature.js';
 
 /**
  * User store — respaldado por Postgres via Prisma.
@@ -75,6 +76,7 @@ export async function createUser(
       data: {
         name: tenantName,
         slug: makeSlug(tenantName),
+        webhookSecret: generateWebhookSecret(),
         settings: { create: {} } /* TenantSettings com defaults */,
         members: { create: { userId: user.id, role: 'OWNER' } },
       },
@@ -211,6 +213,7 @@ export async function findOrCreateGoogleUser(
       data: {
         name: tenantName,
         slug: makeSlug(tenantName),
+        webhookSecret: generateWebhookSecret(),
         settings: { create: {} },
         members: { create: { userId: created.id, role: 'OWNER' } },
       },

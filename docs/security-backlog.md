@@ -27,6 +27,8 @@
 | 🟠 A1 | Token PASETO em localStorage = XSS → account takeover | Backend: cookie `fury_session` HttpOnly + Secure + SameSite=None (prod) / Lax (dev), maxAge 12h. requireAuth lê cookie primeiro, cai pro Bearer (backward compat pra curl/API). Frontend: zero localStorage de token; `credentials:'include'` em todas as chamadas; useAuth valida via `/auth/me` em mount em vez de inferir do localStorage. AuthCallback ignora `?token=` da URL (backend já setou cookie). XSS no JS já não consegue ler token. Em [auth/cookies.ts](../backend/src/auth/cookies.ts) | _Sprint 1_ |
 | 🟠 (novo) | Cookies cross-origin (Netlify ↔ Render) bloqueados por ITP/3rd-party policy | Netlify rewrite `/api/* → Render` em [netlify.toml](../netlify.toml) + [public/_redirects](../frontend/public/_redirects). Browser vê tudo same-origin de Netlify; cookies setados pelo Render passam pelo proxy e viram first-party de Netlify. Frontend hard-codeia `API_BASE = '/api'` (Vite proxy em dev, Netlify proxy em prod). Requer `GOOGLE_REDIRECT_URI` apontando pro Netlify, não Render | _Sprint 1_ |
 | 🟠 (CSRF) | Cookies via SameSite=None expõem a CSRF | Double-submit cookie pattern: cookie `fury_csrf` NÃO-HttpOnly (legível por JS) setado no login/register/google callback. Middleware `csrfProtection` em [auth/csrf.ts](../backend/src/auth/csrf.ts) compara cookie vs header `X-CSRF-Token` com `timingSafeEqual`. Aplicado em /auth/logout e /auth/verify-email/request. Endpoints pré-sessão (login/register/forgot/reset) e webhook são out-of-scope por design (sem cookie de sessão ainda OU autenticados por outros meios). Frontend `api.ts` lê o cookie e injeta o header em qualquer fetch não-safe (POST/PATCH/DELETE/PUT). CORS allowlist atualizada pra incluir `X-CSRF-Token`. 9 testes unit | _Sprint 1_ |
+| 🟡 M1 | Race condition no dedup do webhook (gap getJob → getState) | Reescrita usando Prisma `@@unique([tenantId, jobId])` como atomic primitive: tenta `violation.create`, em P2002 cai no caminho de dedup (200 se QUEUED/ACTIVE, update+re-enqueue se COMPLETED/FAILED). BullMQ.add com jobId já era idempotent. 2 requests concorrentes garantem 1 row no DB + resposta diferenciada (1×202+1×200) | _Sprint 1_ |
+| 🔴 C5 | `POST /webhook/violation` aceita qualquer payload sem HMAC | Tenant ganha `webhookSecret String?` (gerado no register/Google signup). Helper `auth/webhookSignature.ts`: HMAC-SHA256 do raw body, timing-safe compare, header `X-FURY-Signature: sha256=<hex>`. Middleware no /webhook/violation opt-in via env `WEBHOOK_REQUIRE_SIGNATURE=true` (default false pra não quebrar curl do README). `express.json({ verify })` captura rawBody. 15 testes unit | _Sprint 1_ |
 
 ## 🟢 Feito (Sprint 0 · 2026-05-22)
 
@@ -51,15 +53,12 @@
 | Cat. | Issue | Risco | Mitigação proposta | Sprint |
 |---|---|---|---|---|
 | C1 | Secrets aparecem no histórico de chat com IA (Upstash token, Google secret, Neon password) | Qualquer um com acesso ao log de IA tem credentials válidas | Rotacionar tudo via Console (Upstash · Google Cloud · Neon). Atualizar `.env` local + Render env. **User declinou rotacionar pra esse desafio** | n/a |
-| C5 | `POST /webhook/violation` aceita qualquer payload externo (sem HMAC signature, sem IP allowlist) | Adversário com slug conhecido de tenant pode poluir fila + inflar billing | Tabela `TenantWebhookSecret` (gerada no register), header `X-FURY-Signature: HMAC-SHA256(rawBody, secret)`. Behind flag `WEBHOOK_REQUIRE_SIGNATURE=true` pra não quebrar o spec do desafio em dev/avaliação | Sprint 3 |
 
 ## 🟠 Alto pendente
 
 | Cat. | Issue | Mitigação | Sprint |
 |---|---|---|---|
-| A1 | Token PASETO em localStorage → XSS = account takeover | Migrar pra HttpOnly + Secure + SameSite=Strict cookie. Ajustes em CORS (já com credentials:true) + frontend (fetch credentials: 'include') | Sprint 1 |
-| A6 | Google OAuth `state` é apenas "login"/"register" — sem CSRF nonce | `state = base64({ nonce, intent })` com nonce em Redis (TTL 10min). Validar no callback | Sprint 1 |
-| A7 | Sem email verification, password reset, MFA | Tabela `VerificationToken` + Resend free tier (email transactional) + flows `/auth/verify`, `/auth/forgot`, `/auth/reset`. MFA via TOTP (otplib) | Sprint 1-2 |
+| MFA | Sem 2FA disponível pros users | TOTP via otplib + tabela `MfaSecret` opcional + endpoint /auth/mfa/enable/disable/verify. Bonus: WebAuthn pra passkeys | Sprint 2 |
 
 ## 🟡 Médio pendente
 
