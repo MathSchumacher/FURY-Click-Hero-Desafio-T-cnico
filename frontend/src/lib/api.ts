@@ -145,6 +145,27 @@ export function getViolations(params: {
   return authed<ViolationsPage>(`/tenants/me/violations${suffix ? `?${suffix}` : ''}`);
 }
 
+/* ── Webhook secret (OWNER-only — view + rotate) ─────────────── */
+
+export type WebhookSecretView = {
+  secret: string;
+  instructions: string;
+};
+
+export type WebhookSecretRotated = {
+  secret: string;
+};
+
+export function getWebhookSecret(): Promise<WebhookSecretView> {
+  return authed<WebhookSecretView>('/tenants/me/webhook-secret');
+}
+
+export function rotateWebhookSecret(): Promise<WebhookSecretRotated> {
+  return authed<WebhookSecretRotated>('/tenants/me/webhook-secret/rotate', {
+    method: 'POST',
+  });
+}
+
 /* ── Job lookup (pra polling do Simulate Violation) ──────────── */
 
 export type JobStatus = {
