@@ -1,0 +1,166 @@
+/* ============================================================
+   FURY Opening Splash — 3.4s cinematic preloader
+   Sequence:
+     0.00s ─ black overlay fades in (480ms)
+     0.30s ─ logo lifts into focus (1500ms ease) + blur → sharp
+     0.40s ─ central glow flares out (2400ms)
+     0.40s ─ embers begin rising (staggered 200ms apart, each ~2.5s)
+     1.80s ─ logo enters breathing loop (2.4s cycle)
+     2.70s ─ exit phase: overlay + logo fade + slight zoom-out
+     3.40s ─ component unmounts
+   ============================================================ */
+
+.opening-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 50%, #14080a 0%, #050507 60%, #000 100%);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  isolation: isolate;
+  /* Start as full circle covering everything; on exit it shrinks to a dot.
+     Cubic-bezier emphasises the slow-then-fast feel of an iris closing. */
+  clip-path: circle(160% at 50% 50%);
+  -webkit-clip-path: circle(160% at 50% 50%);
+  transition:
+    clip-path 900ms cubic-bezier(0.7, 0, 0.3, 1),
+    -webkit-clip-path 900ms cubic-bezier(0.7, 0, 0.3, 1);
+  animation: splashIntro 480ms ease-out both;
+}
+.opening-splash.is-exiting {
+  pointer-events: none;
+  clip-path: circle(0% at 50% 50%);
+  -webkit-clip-path: circle(0% at 50% 50%);
+}
+@keyframes splashIntro {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── Logo (the star) ─────────────────────────────────── */
+.opening-splash__logo {
+  position: relative;
+  z-index: 2;
+  width: auto;
+  height: clamp(140px, 24vw, 320px);
+  filter:
+    drop-shadow(0 0 22px rgba(255, 61, 46, 0.55))
+    drop-shadow(0 0 70px rgba(255, 122, 24, 0.4));
+  /* Entry: 1500ms (300ms delay so overlay settles first) → breathing loop after */
+  animation:
+    logoIntro 1500ms cubic-bezier(0.16, 1, 0.3, 1) 300ms both,
+    logoBreathe 2400ms ease-in-out 1800ms infinite;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+@keyframes logoIntro {
+  0%   { opacity: 0; transform: scale(0.78) translateY(16px); filter: blur(12px) drop-shadow(0 0 22px rgba(255, 61, 46, 0.55)); }
+  55%  { opacity: 1; filter: blur(0) drop-shadow(0 0 30px rgba(255, 61, 46, 0.75)); }
+  100% { opacity: 1; transform: scale(1)    translateY(0);    filter: blur(0) drop-shadow(0 0 22px rgba(255, 61, 46, 0.55)) drop-shadow(0 0 70px rgba(255, 122, 24, 0.4)); }
+}
+@keyframes logoBreathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.035); }
+}
+
+/* ── Central radial glow — slow flare ────────────────── */
+.opening-splash__glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: clamp(320px, 56vw, 820px);
+  height: clamp(320px, 56vw, 820px);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 61, 46, 0.50) 0%,
+    rgba(255, 122, 24, 0.22) 40%,
+    transparent 70%
+  );
+  filter: blur(46px);
+  transform: translate(-50%, -50%) scale(0.6);
+  opacity: 0;
+  z-index: 1;
+  animation: glowFlare 2400ms cubic-bezier(0.16, 1, 0.3, 1) 400ms both;
+}
+@keyframes glowFlare {
+  0%   { opacity: 0;    transform: translate(-50%, -50%) scale(0.6); }
+  50%  { opacity: 1;    transform: translate(-50%, -50%) scale(1.05); }
+  100% { opacity: 0.72; transform: translate(-50%, -50%) scale(1.3); }
+}
+
+/* ── Exit choreography: logo absorbs forward, glow explodes outward ── */
+.opening-splash.is-exiting .opening-splash__logo {
+  /* Logo rushes toward the camera and dissolves — feels like "ignition" */
+  animation: logoAbsorb 850ms cubic-bezier(0.55, 0, 0.4, 1) forwards;
+}
+@keyframes logoAbsorb {
+  0%   { transform: scale(1)   translateY(0); opacity: 1; filter: blur(0)   drop-shadow(0 0 22px rgba(255, 61, 46, 0.55)) drop-shadow(0 0 70px rgba(255, 122, 24, 0.4)); }
+  35%  { transform: scale(1.15) translateY(-4px); opacity: 1; filter: blur(0) drop-shadow(0 0 40px rgba(255, 122, 24, 0.85)); }
+  100% { transform: scale(1.9) translateY(-12px); opacity: 0; filter: blur(8px) drop-shadow(0 0 80px rgba(255, 220, 130, 0.9)); }
+}
+
+.opening-splash.is-exiting .opening-splash__glow {
+  /* Glow blooms outward as if the iris is pushing it past the frame */
+  animation: glowBlast 850ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes glowBlast {
+  0%   { opacity: 0.7; transform: translate(-50%, -50%) scale(1.3); }
+  40%  { opacity: 1;   transform: translate(-50%, -50%) scale(2.0); }
+  100% { opacity: 0;   transform: translate(-50%, -50%) scale(3.4); }
+}
+
+.opening-splash.is-exiting .opening-splash__ember {
+  /* Embers extinguish quickly so they don't pop after the iris closes */
+  animation: emberSnuff 380ms ease-out forwards !important;
+}
+@keyframes emberSnuff {
+  0%   { opacity: 1; }
+  100% { opacity: 0; transform: translateX(0) scale(1.4); }
+}
+
+/* ── Floating embers rising from below (slower + staggered) ── */
+.opening-splash__ember {
+  position: absolute;
+  bottom: -8%;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffd166 0%, #ff7a18 40%, transparent 70%);
+  filter: blur(0.6px);
+  pointer-events: none;
+  opacity: 0;
+  box-shadow: 0 0 8px rgba(255, 122, 24, 0.6);
+}
+.opening-splash__ember--1 {
+  left: 28%;
+  width: 7px;
+  height: 7px;
+  animation: emberRise 2600ms ease-out 450ms both;
+}
+.opening-splash__ember--2 {
+  left: 55%;
+  width: 5px;
+  height: 5px;
+  animation: emberRise 2800ms ease-out 700ms both;
+}
+.opening-splash__ember--3 {
+  left: 72%;
+  width: 6px;
+  height: 6px;
+  animation: emberRise 2700ms ease-out 950ms both;
+}
+@keyframes emberRise {
+  0%   { opacity: 0; bottom: -8%; transform: translateX(0) scale(1); }
+  15%  { opacity: 1; }
+  85%  { opacity: 0.6; }
+  100% { opacity: 0; bottom: 108%; transform: translateX(24px) scale(0.25); }
+}
+
+/* ── Reduced motion: component already returns null, but be defensive ── */
+@media (prefers-reduced-motion: reduce) {
+  .opening-splash,
+  .opening-splash__logo,
+  .opening-splash__glow,
+  .opening-splash__ember { animation: none !important; }
+}

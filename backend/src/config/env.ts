@@ -1,0 +1,24 @@
+import 'dotenv/config';
+import { z } from 'zod';
+
+const envSchema = z.object({
+  PORT: z.coerce.number().int().positive().default(3001),
+  REDIS_HOST: z.string().default('127.0.0.1'),
+  REDIS_PORT: z.coerce.number().int().positive().default(6379),
+  REDIS_PASSWORD: z.string().optional(),
+  REDIS_URL: z.string().optional(),
+  QUEUE_NAME: z.string().default('ad-processing'),
+  WORKER_CONCURRENCY: z.coerce.number().int().positive().default(5),
+  UPSTREAM_URL: z.string().url().default('https://jsonplaceholder.typicode.com/posts/1'),
+  UPSTREAM_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+});
+
+const parsed = envSchema.safeParse(process.env);
+
+if (!parsed.success) {
+  console.error('Invalid environment variables:', parsed.error.flatten().fieldErrors);
+  process.exit(1);
+}
+
+export const env = parsed.data;

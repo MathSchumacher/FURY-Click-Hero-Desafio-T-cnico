@@ -1,0 +1,101 @@
+.problem {
+  background: var(--c-bg);
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.problem::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url('/background3dark.webp');
+  background-size: cover;
+  background-position: center bottom;
+  opacity: 0.28;
+  z-index: -1;
+  mask-image: linear-gradient(180deg, transparent 0%, black 60%, black 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, black 60%, black 100%);
+  pointer-events: none;
+}
+.problem::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent, rgba(var(--c-accent-rgb), 0.04), transparent);
+  z-index: -1;
+  pointer-events: none;
+}
+.problem > .container { position: relative; z-index: 1; }
+
+.section-head--left {
+  max-width: var(--container-narrow);
+  margin: 0 0 var(--sp-12) 0;
+  text-align: left;
+}
+.section-head--left .lead { margin-inline: 0; }
+
+.problem__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-4);
+  position: relative;
+}
+
+.problem__card {
+  position: relative;
+  padding: var(--sp-8) var(--sp-6);
+  border-radius: var(--r-lg);
+  background: var(--c-bg-elev);
+  border: 1px solid var(--c-border);
+  overflow: hidden;
+  transition: transform var(--t-base), border-color var(--t-base);
+}
+.problem__card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--c-accent-grad);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 450ms var(--ease-out-expo);
+}
+.problem__card:hover {
+  transform: translateY(-4px);
+  border-color: var(--c-border-accent);
+}
+.problem__card:hover::after {
+  transform: scaleX(1);
+}
+
+.problem__card-metric {
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--c-text-dim);
+  margin-bottom: var(--sp-3);
+}
+.problem__card-value {
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 3vw, 2.5rem);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1;
+  color: var(--c-accent);
+  margin-bottom: var(--sp-2);
+}
+.problem__card-label {
+  font-size: 0.92rem;
+  color: var(--c-text-muted);
+  line-height: var(--lh-snug);
+}
+
+@media (max-width: 900px) {
+  .problem__grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .problem__grid { grid-template-columns: 1fr; max-width: 360px; margin-inline: auto; }
+  .problem__card { padding: var(--sp-6) var(--sp-5); }
+}

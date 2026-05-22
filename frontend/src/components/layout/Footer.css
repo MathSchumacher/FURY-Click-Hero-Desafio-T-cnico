@@ -1,0 +1,89 @@
+.site-footer {
+  background: #050507;
+  border-top: 1px solid var(--c-border);
+  padding-top: var(--sp-16);
+  padding-bottom: var(--sp-8);
+}
+
+.site-footer__inner {
+  display: grid;
+  grid-template-columns: 1.2fr 2fr;
+  gap: clamp(40px, 6vw, 80px);
+  padding-bottom: var(--sp-12);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.site-footer__brand-row {
+  display: flex;
+  align-items: center;
+  gap: clamp(14px, 1.6vw, 22px);
+  margin-bottom: var(--sp-5);
+}
+.site-footer__icon {
+  width: clamp(56px, 6vw, 76px);
+  height: clamp(56px, 6vw, 76px);
+  filter:
+    drop-shadow(0 0 14px rgba(var(--c-accent-rgb), 0.55))
+    drop-shadow(0 0 28px rgba(var(--c-accent-hot-rgb), 0.3));
+}
+.site-footer__wordmark {
+  height: clamp(36px, 4vw, 50px);
+  width: auto;
+  filter:
+    drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6))
+    drop-shadow(0 0 22px rgba(var(--c-accent-hot-rgb), 0.32));
+}
+
+.site-footer__tagline {
+  color: var(--c-text-muted);
+  font-size: 0.92rem;
+  line-height: var(--lh-loose);
+  max-width: 36ch;
+}
+
+.site-footer__cols {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-8);
+}
+
+.site-footer__col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.site-footer__col-title {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--c-text-dim);
+  margin-bottom: var(--sp-2);
+}
+.site-footer__col a {
+  color: var(--c-text-muted);
+  font-size: 0.92rem;
+  transition: color var(--t-fast);
+}
+.site-footer__col a:hover { color: var(--c-text); }
+
+.site-footer__bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: var(--sp-6);
+  font-size: 0.75rem;
+}
+.site-footer__build {
+  letter-spacing: 0.06em;
+}
+
+@media (max-width: 800px) {
+  .site-footer__inner { grid-template-columns: 1fr; }
+  .site-footer__cols { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 540px) {
+  .site-footer__cols { grid-template-columns: 1fr; gap: var(--sp-6); }
+  .site-footer__bottom { flex-direction: column; gap: var(--sp-2); }
+}

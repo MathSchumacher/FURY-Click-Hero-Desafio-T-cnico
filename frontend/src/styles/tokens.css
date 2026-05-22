@@ -1,0 +1,129 @@
+/* ============================================================
+   FURY — Design Tokens
+   Primitive → Semantic → Component
+   ============================================================ */
+
+:root {
+  /* ── Brand Colors ─────────────────────────────────────────── */
+  --c-accent:           #ff3d2e;
+  --c-accent-rgb:       255, 61, 46;
+  --c-accent-hot:       #ff7a18;
+  --c-accent-hot-rgb:   255, 122, 24;
+  --c-accent-grad:      linear-gradient(135deg, #ff3d2e 0%, #ff7a18 100%);
+  --c-blue-tech:        #4f8cff;
+  --c-blue-tech-rgb:    79, 140, 255;
+
+  /* ── Background (tinted black, not pure) ─────────────────── */
+  --c-bg:               #0a0a0c;
+  --c-bg-rgb:           10, 10, 12;
+  --c-bg-2:             #111114;
+  --c-bg-elev:          #18181c;
+  --c-bg-card:          rgba(20, 20, 24, 0.72);
+
+  /* ── Text — off-white headlines + warm gray body for depth ─── */
+  --c-text:             #e7e7e7;            /* slightly warm off-white */
+  --c-text-rgb:         231, 231, 231;
+  --c-text-muted:       #8a8177;            /* warm gray (more cinematic than cool gray) */
+  --c-text-dim:         #5e574f;
+  --c-text-faint:       #3a3530;
+
+  /* ── Borders ─────────────────────────────────────────────── */
+  --c-border:           rgba(255, 255, 255, 0.06);
+  --c-border-strong:    rgba(255, 255, 255, 0.12);
+  --c-border-accent:    rgba(255, 61, 46, 0.30);
+
+  /* ── Severity scale ──────────────────────────────────────── */
+  --c-sev-low:          #6b7280;
+  --c-sev-medium:       #f5b942;
+  --c-sev-high:         #ff7a18;
+  --c-sev-critical:     #ff3d2e;
+
+  /* ── Status ──────────────────────────────────────────────── */
+  --c-success:          #2bd279;
+  --c-warning:          #f5b942;
+  --c-error:            #ff3d2e;
+
+  /* ── Glow system ─────────────────────────────────────────── */
+  --glow-xs:    0 0 6px  rgba(var(--c-accent-rgb), 0.45);
+  --glow-sm:    0 0 14px rgba(var(--c-accent-rgb), 0.50), 0 0 32px rgba(var(--c-accent-rgb), 0.20);
+  --glow-md:    0 0 24px rgba(var(--c-accent-rgb), 0.55), 0 0 56px rgba(var(--c-accent-rgb), 0.25);
+  --glow-lg:    0 0 40px rgba(var(--c-accent-rgb), 0.50), 0 0 100px rgba(var(--c-accent-rgb), 0.20);
+
+  /* ── Typography ──────────────────────────────────────────── */
+  --font-hero:    'Clash Display', 'Space Grotesk', system-ui, sans-serif;
+  --font-display: 'Satoshi', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-body:    'Satoshi', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono:    'JetBrains Mono', 'Geist Mono', 'Fira Code', ui-monospace, Consolas, monospace;
+
+  /* Hero scale: 32px → 96px */
+  --fs-hero:      clamp(2.25rem, 5.6vw, 6rem);
+  /* Section H2: 28px → 56px */
+  --fs-display:   clamp(1.75rem, 3.5vw, 3.5rem);
+  /* H3 / module: 22px → 36px */
+  --fs-heading:   clamp(1.375rem, 2.2vw, 2.25rem);
+  /* Lead / large body: 17px → 21px */
+  --fs-lead:      clamp(1.0625rem, 1.4vw, 1.3125rem);
+  /* Body */
+  --fs-body:      1rem;
+  /* Small */
+  --fs-sm:        0.875rem;
+  /* Eyebrow */
+  --fs-eyebrow:   0.75rem;
+
+  /* Line-heights */
+  --lh-tight:     1.02;
+  --lh-snug:      1.15;
+  --lh-normal:    1.5;
+  --lh-loose:     1.65;
+
+  /* ── Spacing (4pt) ───────────────────────────────────────── */
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-5:  20px;
+  --sp-6:  24px;
+  --sp-8:  32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+  --sp-20: 80px;
+  --sp-24: 96px;
+  --sp-32: 128px;
+
+  /* Section vertical rhythm — scales for phone (375) → ultrawide (2560) */
+  --section-py: clamp(64px, 9vw, 160px);
+  --section-py-tight: clamp(48px, 6vw, 112px);
+
+  /* ── Radii ───────────────────────────────────────────────── */
+  --r-sm:    8px;
+  --r-md:    14px;
+  --r-lg:    20px;
+  --r-xl:    28px;
+  --r-pill:  999px;
+
+  /* ── Easing ──────────────────────────────────────────────── */
+  --ease-out-quart:  cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-quint:  cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo:   cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out:     cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-snap:       cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ── Layout ──────────────────────────────────────────────── */
+  --container:   1280px;
+  --container-narrow: 920px;
+  --container-wide:   1480px;
+  --nav-h:       80px;
+
+  /* ── Z-index ─────────────────────────────────────────────── */
+  --z-bg:        0;
+  --z-content:   10;
+  --z-nav:       100;
+  --z-overlay:   1000;
+  --z-modal:     1200;
+
+  /* ── Transitions ─────────────────────────────────────────── */
+  --t-fast:      120ms var(--ease-out-quart);
+  --t-base:      220ms var(--ease-out-quart);
+  --t-slow:      450ms var(--ease-out-expo);
+}

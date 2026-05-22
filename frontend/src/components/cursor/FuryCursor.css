@@ -1,0 +1,327 @@
+/* ============================================================
+   FURY Cursor — image-based ember arrow with orbital effects
+   ============================================================ */
+
+/* Force-hide the native cursor on ALL elements (with text-input exceptions).
+   The !important is necessary because <a>, <button>, [role=button] etc. each
+   carry their own user-agent cursor (pointer/text) that would otherwise win. */
+@media (hover: hover) and (pointer: fine) {
+  html, body, body * { cursor: none !important; }
+  input[type="text"],
+  input[type="email"],
+  input[type="number"],
+  input[type="password"],
+  input[type="search"],
+  input[type="url"],
+  input[type="tel"],
+  textarea,
+  [contenteditable="true"] { cursor: text !important; }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  body { cursor: auto; }
+  a, button, input, [role="button"] { cursor: pointer; }
+}
+
+/* ── Wrapper (positioned at mouse via translate3d in JS) ─── */
+.fury-cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 99999;
+  opacity: 0;
+  transition: opacity 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+  transform: translate3d(-200px, -200px, 0);
+}
+.fury-cursor.is-visible { opacity: 1; }
+
+/* ── Cursor image — STAR of the show ──────────────────── */
+.fury-cursor__img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  /* override global `img { max-width:100% }` — wrapper is 0×0 so 100% = 0 */
+  width: 28px !important;
+  height: 37px !important;
+  min-width: 28px;
+  min-height: 37px;
+  max-width: none;
+  max-height: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  transform-origin: 0% 0%;
+  filter:
+    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9))
+    drop-shadow(0 0 1px rgba(0, 0, 0, 0.7));
+  transition:
+    transform 240ms cubic-bezier(0.34, 1.4, 0.55, 1),
+    filter   220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Halo — soft radial backdrop glow that breathes ────── */
+.fury-cursor__halo {
+  position: absolute;
+  /* centered roughly on the body of the cursor (~14, 16) */
+  top: -8px;
+  left: -10px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 61, 46, 0.4) 0%,
+    rgba(255, 122, 24, 0.18) 45%,
+    transparent 70%
+  );
+  filter: blur(10px);
+  pointer-events: none;
+  animation: cursorBreathe 2.6s ease-in-out infinite;
+  transition:
+    width 320ms cubic-bezier(0.34, 1.4, 0.55, 1),
+    height 320ms cubic-bezier(0.34, 1.4, 0.55, 1),
+    top 320ms cubic-bezier(0.34, 1.4, 0.55, 1),
+    left 320ms cubic-bezier(0.34, 1.4, 0.55, 1),
+    background 240ms ease-out;
+}
+@keyframes cursorBreathe {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50%      { transform: scale(1.15); opacity: 1; }
+}
+
+/* ── Orbital ring — thin dashed circle rotating around ── */
+.fury-cursor__ring {
+  position: absolute;
+  top: -6px;
+  left: -8px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px dashed rgba(255, 122, 24, 0.45);
+  pointer-events: none;
+  animation: ringRotate 7s linear infinite;
+  transition:
+    width 320ms cubic-bezier(0.34, 1.4, 0.55, 1),
+    height 320ms cubic-bezier(0.34, 1.4, 0.55, 1),
+    top 320ms cubic-bezier(0.34, 1.4, 0.55, 1),
+    left 320ms cubic-bezier(0.34, 1.4, 0.55, 1),
+    border-color 240ms ease-out;
+}
+@keyframes ringRotate {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ── Orbit container — holds the orbiting sparks ───────── */
+.fury-cursor__orbit {
+  position: absolute;
+  top: 16px;
+  left: 12px;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  animation: orbitRotate 4.5s linear infinite;
+  transition: animation-duration 240ms ease-out;
+}
+@keyframes orbitRotate {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ── Sparks — small embers orbiting around cursor body ── */
+.fury-cursor__spark {
+  position: absolute;
+  width: 3.5px;
+  height: 3.5px;
+  border-radius: 50%;
+  background: #ff7a18;
+  box-shadow:
+    0 0 4px rgba(255, 122, 24, 0.9),
+    0 0 10px rgba(255, 61, 46, 0.5);
+  animation: sparkPulse 1.6s ease-in-out infinite;
+}
+.fury-cursor__spark--1 {
+  top: -18px;
+  left: 0;
+  animation-delay: 0s;
+}
+.fury-cursor__spark--2 {
+  top: 10px;
+  left: 16px;
+  background: #ffd166;
+  box-shadow:
+    0 0 4px rgba(255, 209, 102, 0.95),
+    0 0 10px rgba(255, 122, 24, 0.55);
+  animation-delay: 0.5s;
+  animation-duration: 2s;
+}
+.fury-cursor__spark--3 {
+  top: 10px;
+  left: -16px;
+  background: #ff3d2e;
+  box-shadow:
+    0 0 4px rgba(255, 61, 46, 0.9),
+    0 0 8px rgba(255, 61, 46, 0.4);
+  animation-delay: 1s;
+  animation-duration: 1.8s;
+}
+@keyframes sparkPulse {
+  0%, 100% { transform: scale(0.7); opacity: 0.55; }
+  50%      { transform: scale(1.1); opacity: 1; }
+}
+
+/* ── Pulse ring — click feedback ────────────────────── */
+.fury-cursor__pulse {
+  position: absolute;
+  top: -7px;
+  left: -7px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 61, 46, 0.8);
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(1);
+  transform-origin: center;
+}
+.fury-cursor.is-pressed .fury-cursor__pulse {
+  animation: cursorPulse 580ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes cursorPulse {
+  0%   { opacity: 0.9;  transform: scale(0.4); border-width: 2px;  border-color: rgba(255, 220, 130, 0.95); }
+  60%  { opacity: 0.55;                       border-color: rgba(255, 122, 24, 0.65); }
+  100% { opacity: 0;    transform: scale(4); border-width: 1px;  border-color: rgba(255, 61, 46, 0); }
+}
+
+/* ── STATE: hover over interactive elements ─────────────── */
+.fury-cursor.is-hover .fury-cursor__img {
+  transform: scale(1.3);
+  filter:
+    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9))
+    drop-shadow(0 0 12px rgba(255, 61, 46, 0.85))
+    drop-shadow(0 0 24px rgba(255, 122, 24, 0.45));
+}
+.fury-cursor.is-hover .fury-cursor__halo {
+  width: 68px;
+  height: 68px;
+  top: -16px;
+  left: -20px;
+  background: radial-gradient(
+    circle,
+    rgba(255, 61, 46, 0.65) 0%,
+    rgba(255, 122, 24, 0.3) 50%,
+    transparent 72%
+  );
+  animation-duration: 1.3s;
+}
+.fury-cursor.is-hover .fury-cursor__ring {
+  width: 58px;
+  height: 58px;
+  top: -14px;
+  left: -16px;
+  border-color: rgba(255, 61, 46, 0.75);
+  border-style: solid;
+  border-width: 1.5px;
+  animation-duration: 3s;
+}
+.fury-cursor.is-hover .fury-cursor__orbit {
+  animation-duration: 2s;
+}
+.fury-cursor.is-hover .fury-cursor__spark {
+  animation-duration: 0.9s;
+}
+
+/* ── STATE: mouse pressed ───────────────────────────────── */
+.fury-cursor.is-pressed .fury-cursor__img {
+  transform: scale(0.85);
+  filter:
+    brightness(1.5)
+    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9))
+    drop-shadow(0 0 14px rgba(255, 220, 130, 0.95));
+}
+.fury-cursor.is-pressed .fury-cursor__halo {
+  background: radial-gradient(
+    circle,
+    rgba(255, 220, 130, 0.7) 0%,
+    rgba(255, 122, 24, 0.32) 55%,
+    transparent 72%
+  );
+}
+
+.fury-cursor.is-hover.is-pressed .fury-cursor__img {
+  transform: scale(1.08);
+}
+
+/* ── STATE: hovering a draggable area (3D viewer) ─────── */
+.fury-cursor.is-grab .fury-cursor__img {
+  /* slight rotation to suggest 'grab' affordance */
+  transform: rotate(-12deg) scale(1.1);
+  filter:
+    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9))
+    drop-shadow(0 0 14px rgba(255, 209, 102, 0.85))
+    drop-shadow(0 0 28px rgba(255, 122, 24, 0.45));
+}
+.fury-cursor.is-grab .fury-cursor__ring {
+  border-style: solid;
+  border-width: 1.5px;
+  border-color: rgba(255, 209, 102, 0.85);
+  animation-duration: 4s;
+  width: 52px;
+  height: 52px;
+  top: -10px;
+  left: -14px;
+}
+.fury-cursor.is-grab .fury-cursor__orbit {
+  animation-duration: 2.5s;
+}
+.fury-cursor.is-grab .fury-cursor__spark {
+  animation-duration: 1.1s;
+  box-shadow:
+    0 0 5px rgba(255, 209, 102, 0.95),
+    0 0 12px rgba(255, 122, 24, 0.6);
+}
+.fury-cursor.is-grab .fury-cursor__halo {
+  background: radial-gradient(
+    circle,
+    rgba(255, 209, 102, 0.5) 0%,
+    rgba(255, 122, 24, 0.25) 50%,
+    transparent 72%
+  );
+}
+
+/* While actually dragging (mouse held down over grab area) — tighten grip */
+.fury-cursor.is-grab.is-pressed .fury-cursor__img {
+  transform: rotate(-20deg) scale(0.95);
+  filter:
+    brightness(1.55)
+    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9))
+    drop-shadow(0 0 16px rgba(255, 220, 130, 0.95));
+}
+
+/* ── TRAIL CANVAS — ember particles behind cursor ──────── */
+.fury-cursor__trail {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 99998;
+  mix-blend-mode: screen;
+  opacity: 0.7;
+}
+
+/* ── Reduced motion: kill all loops + transitions ──────── */
+@media (prefers-reduced-motion: reduce) {
+  .fury-cursor__halo,
+  .fury-cursor__pulse,
+  .fury-cursor__ring,
+  .fury-cursor__orbit,
+  .fury-cursor__spark { animation: none; }
+  .fury-cursor__img,
+  .fury-cursor__halo,
+  .fury-cursor__ring { transition: none; }
+  .fury-cursor__trail { display: none; }
+}

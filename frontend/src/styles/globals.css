@@ -1,0 +1,192 @@
+@import './tokens.css';
+
+/* ============================================================
+   Reset + Base
+   ============================================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
+  color: var(--c-text);
+  background: var(--c-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+img, video, svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+input, textarea, select {
+  font: inherit;
+  color: inherit;
+}
+
+/* Selection */
+::selection {
+  background: var(--c-accent);
+  color: white;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track { background: var(--c-bg); }
+::-webkit-scrollbar-thumb {
+  background: rgba(var(--c-accent-rgb), 0.35);
+  border-radius: var(--r-pill);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--c-accent-rgb), 0.55);
+}
+
+/* Focus */
+:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* ============================================================
+   Typography utilities
+   ============================================================ */
+.font-display { font-family: var(--font-display); }
+.font-mono    { font-family: var(--font-mono); }
+
+.h-hero {
+  font-family: var(--font-hero);
+  font-size: var(--fs-hero);
+  font-weight: 600;
+  line-height: var(--lh-tight);
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+}
+
+.h-display {
+  font-family: var(--font-hero);
+  font-size: var(--fs-display);
+  font-weight: 600;
+  line-height: var(--lh-snug);
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+.h-heading {
+  font-family: var(--font-hero);
+  font-size: var(--fs-heading);
+  font-weight: 500;
+  line-height: var(--lh-snug);
+  letter-spacing: -0.025em;
+}
+
+.lead {
+  font-size: var(--fs-lead);
+  line-height: var(--lh-loose);
+  color: var(--c-text-muted);
+  text-wrap: balance;
+  max-width: 60ch;
+}
+
+.eyebrow {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: var(--fs-eyebrow);
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--c-accent);
+}
+
+.gradient-text {
+  background-image: var(--c-accent-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+/* When SplitTextReveal wraps words/chars in inline-block spans,
+   background-clip:text on parent stops propagating. Re-apply on children. */
+.gradient-text .split-word,
+.gradient-text .split-char {
+  background-image: inherit;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.mono { font-family: var(--font-mono); }
+
+.muted { color: var(--c-text-muted); }
+.dim   { color: var(--c-text-dim); }
+
+/* ============================================================
+   Layout
+   ============================================================ */
+.container {
+  width: 100%;
+  max-width: var(--container);
+  margin: 0 auto;
+  padding-inline: clamp(20px, 5vw, 72px);
+}
+.container-narrow {
+  max-width: var(--container-narrow);
+}
+.container-wide {
+  max-width: var(--container-wide);
+}
+
+.section {
+  padding-block: var(--section-py);
+  position: relative;
+}
+
+/* ============================================================
+   Split-text helpers (GSAP injects these classes at runtime)
+   ============================================================ */
+.split-word, .split-char {
+  display: inline-block;
+  will-change: transform, opacity;
+}
+
+/* ============================================================
+   Reduced motion
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

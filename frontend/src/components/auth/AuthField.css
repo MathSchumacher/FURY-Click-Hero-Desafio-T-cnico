@@ -1,0 +1,96 @@
+/* ── Reusable form field (label + input + toggle + hint) ── */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field__label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}
+.field__req {
+  color: var(--c-accent);
+  margin-left: 2px;
+}
+
+.field__wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  transition:
+    border-color var(--t-base),
+    box-shadow var(--t-base),
+    background var(--t-base);
+}
+.field__wrap:hover {
+  border-color: var(--c-border-strong);
+}
+.field__wrap:focus-within {
+  border-color: var(--c-accent);
+  background: rgba(var(--c-accent-rgb), 0.05);
+  box-shadow:
+    0 0 0 3px rgba(var(--c-accent-rgb), 0.12),
+    0 0 18px rgba(var(--c-accent-rgb), 0.18);
+}
+
+.field__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 12px;
+  color: var(--c-text-muted);
+}
+
+.field__input {
+  flex: 1;
+  min-width: 0;
+  padding: 13px 14px;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: var(--c-text);
+  font-family: var(--font-body);
+  font-size: 0.94rem;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+/* The wrapper handles the visual focus ring via :focus-within.
+   Suppress the global :focus-visible outline so we don't get a double ring. */
+.field__input:focus,
+.field__input:focus-visible {
+  outline: none;
+}
+.field__input::placeholder {
+  color: var(--c-text-faint);
+  font-weight: 400;
+}
+
+.field__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  height: 100%;
+  background: transparent;
+  border: 0;
+  color: var(--c-text-muted);
+  transition: color var(--t-fast);
+}
+.field__toggle:hover {
+  color: var(--c-accent);
+}
+
+.field__hint {
+  font-size: 0.78rem;
+  color: var(--c-text-muted);
+  margin-top: 2px;
+}
+.field__hint--error { color: var(--c-error); }
