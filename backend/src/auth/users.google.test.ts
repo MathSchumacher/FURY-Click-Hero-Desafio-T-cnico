@@ -118,7 +118,7 @@ describe('findOrCreateGoogleUser', () => {
       name: 'Matheus Schumacher',
       googleId: null,
       avatarUrl: null,
-      passwordHash: 'hashed-pwd', /* tinha conta com senha */
+      passwordHash: 'hashed-pwd' /* tinha conta com senha */,
     });
     fakeMemberships.set('u_local', 't_local');
 

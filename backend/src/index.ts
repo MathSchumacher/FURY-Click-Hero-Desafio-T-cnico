@@ -9,6 +9,7 @@ import { deadLetterRouter } from './routes/deadletter.js';
 import { healthRouter } from './routes/health.js';
 import { metricsRouter } from './routes/metrics.js';
 import { authRouter } from './routes/auth.js';
+import { tenantsRouter } from './routes/tenants.js';
 import './worker.js';
 
 const app = express();
@@ -23,6 +24,7 @@ app.use(webhookRouter);
 app.use(deadLetterRouter);
 app.use(jobsRouter);
 app.use(authRouter);
+app.use(tenantsRouter);
 
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
   logger.error({ err: err.message, stack: err.stack, requestId: req.id }, 'http:unhandled');

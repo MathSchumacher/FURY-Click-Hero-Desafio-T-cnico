@@ -145,16 +145,17 @@ authRouter.get('/auth/google', (_req: Request, res: Response) => {
 authRouter.get('/auth/google/callback', async (req: Request, res: Response) => {
   const client = googleClient();
   if (!client) {
-    res.redirect(`${env.FRONTEND_URL}/auth/callback?error=not_configured`); return;
+    res.redirect(`${env.FRONTEND_URL}/auth/callback?error=not_configured`);
+    return;
   }
 
   const code = typeof req.query.code === 'string' ? req.query.code : null;
-  const errorParam =
-    typeof req.query.error === 'string' ? (req.query.error) : null;
+  const errorParam = typeof req.query.error === 'string' ? req.query.error : null;
   if (errorParam || !code) {
     res.redirect(
       `${env.FRONTEND_URL}/auth/callback?error=${encodeURIComponent(errorParam ?? 'no_code')}`,
-    ); return;
+    );
+    return;
   }
 
   try {
@@ -187,13 +188,15 @@ authRouter.get('/auth/google/callback', async (req: Request, res: Response) => {
       tenantId,
     });
 
-    res.redirect(`${env.FRONTEND_URL}/auth/callback?token=${encodeURIComponent(token)}`); return;
+    res.redirect(`${env.FRONTEND_URL}/auth/callback?token=${encodeURIComponent(token)}`);
+    return;
   } catch (err) {
     const e = err as Error;
     logger.error({ err: e.message }, 'auth:google:callback:failed');
     res.redirect(
       `${env.FRONTEND_URL}/auth/callback?error=${encodeURIComponent('google_auth_failed')}`,
-    ); return;
+    );
+    return;
   }
 });
 
