@@ -48,8 +48,28 @@ export function setSession(user: AuthUser): void {
 /** Busca o user atual via /auth/me. Browser envia cookie automaticamente. */
 export async function fetchMe(): Promise<AuthUser> {
   const url = `${API_BASE}/auth/me`;
-  const res = await fetch(url, { credentials: 'include' });
+  let res: Response;
+  try {
+    res = await fetch(url, { credentials: 'include' });
+  } catch (netErr) {
+    console.error('[fury][network]', { url, error: netErr });
+    throw new Error('Sem conexão ao validar sessão.');
+  }
   if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    let body: Record<string, unknown> | null = null;
+    try {
+      body = text ? (JSON.parse(text) as Record<string, unknown>) : null;
+    } catch {
+      /* corpo não é JSON */
+    }
+    console.error('[fury][http]', {
+      url,
+      status: res.status,
+      backendMessage: body?.['error'],
+      requestId: body?.['requestId'],
+      body,
+    });
     throw new Error(`HTTP ${res.status} ao buscar /auth/me`);
   }
   return (await res.json()) as AuthUser;
