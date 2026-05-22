@@ -4,7 +4,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 const N_POINTS = 36;
 const TICK_MS = 1300;
 const EVENT_EVERY_MS = 7000;
-const CHART_W = 640;
+/* Proporção próxima da largura real renderizada (~7:1) pra evitar que o SVG
+   estique horizontalmente — quando viewBox e container têm aspect-ratio
+   muito diferentes + preserveAspectRatio="none", as letras distorcem. */
+const CHART_W = 1400;
 const CHART_H = 200;
 const PAD_T = 14;
 const PAD_B = 28;
@@ -363,7 +366,7 @@ export function LiveDashboard(): JSX.Element {
         <svg
           className="live-dash__svg"
           viewBox={`0 0 ${CHART_W} ${CHART_H}`}
-          preserveAspectRatio="none"
+          preserveAspectRatio="xMidYMid meet"
           role="img"
           aria-label="Gráfico de evolução de ROAS"
         >
