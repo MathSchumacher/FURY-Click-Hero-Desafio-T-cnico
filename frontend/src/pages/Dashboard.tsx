@@ -4,6 +4,7 @@ import { SimulateViolationPanel } from '../components/dashboard/SimulateViolatio
 import { RecentViolationsPanel } from '../components/dashboard/RecentViolationsPanel';
 import { SeverityDonut } from '../components/dashboard/SeverityDonut';
 import { ConnectionsHealth } from '../components/dashboard/ConnectionsHealth';
+import { WebhookSecretCard } from '../components/dashboard/WebhookSecretCard';
 import { useAuth } from '../hooks/useAuth';
 import { useStats } from '../hooks/useBackendLive';
 
@@ -122,6 +123,10 @@ export default function DashboardPage(): JSX.Element {
         <section className="dash-side-grid">
           <SeverityDonut />
           <ConnectionsHealth />
+        </section>
+
+        <section className="dash-settings">
+          <WebhookSecretCard />
         </section>
       </main>
     </div>

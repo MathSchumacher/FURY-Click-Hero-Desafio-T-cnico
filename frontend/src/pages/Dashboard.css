@@ -157,6 +157,13 @@
   grid-template-columns: 1fr 1fr;
   gap: var(--sp-4);
 }
+
+/* ── Settings section (webhook secret, account, etc) ──────── */
+.dash-settings {
+  display: grid;
+  gap: var(--sp-4);
+  margin-top: var(--sp-6);
+}
 .dash-card {
   background: linear-gradient(180deg, rgba(20, 20, 24, 0.92), rgba(14, 14, 18, 0.92));
   border: 1px solid var(--c-border);
