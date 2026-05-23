@@ -7,6 +7,7 @@ import { ConnectionsHealth } from '../components/dashboard/ConnectionsHealth';
 import { WebhookSecretCard } from '../components/dashboard/WebhookSecretCard';
 import { useAuth } from '../hooks/useAuth';
 import { useStats } from '../hooks/useBackendLive';
+import { useEventStream } from '../hooks/useEventStream';
 
 function greetingFor(name: string): string {
   const hour = new Date().getHours();
@@ -60,7 +61,18 @@ function buildQuickStats(stats: ReturnType<typeof useStats>['data']): QuickStatC
 
 export default function DashboardPage(): JSX.Element {
   const { user } = useAuth();
-  const { data: stats } = useStats(4000);
+  /* Polling 10s como fallback (caso SSE caia). Stream dispara refetch
+     instantâneo via streamTick → bump nos hooks de polling. */
+  const { data: stats, refetch: refetchStats } = useStats(10_000);
+  const [streamTick, setStreamTick] = useState(0);
+
+  const { status: streamStatus } = useEventStream({
+    onViolation: () => {
+      setStreamTick((t) => t + 1);
+      refetchStats();
+    },
+  });
+
   const quickStats = buildQuickStats(stats);
   const [collapsed, setCollapsed] = useState<boolean>(
     () => typeof window !== 'undefined' && localStorage.getItem('fury_sidebar_collapsed') === 'true',
@@ -88,9 +100,15 @@ export default function DashboardPage(): JSX.Element {
             <span className="dash-topbar__sep">/</span>
             <span className="mono dim">tempo real</span>
           </div>
-          <div className="dash-topbar__live">
+          <div className="dash-topbar__live" data-stream-status={streamStatus}>
             <span className="dash-topbar__live-dot" />
-            todos os sistemas em chamas
+            {streamStatus === 'connected'
+              ? 'stream ao vivo · sistemas em chamas'
+              : streamStatus === 'connecting'
+                ? 'conectando ao stream…'
+                : streamStatus === 'error'
+                  ? 'stream caiu · polling ativo'
+                  : 'polling ativo'}
           </div>
         </header>
 
@@ -117,7 +135,7 @@ export default function DashboardPage(): JSX.Element {
 
         <section className="dash-realtime">
           <SimulateViolationPanel />
-          <RecentViolationsPanel />
+          <RecentViolationsPanel refreshKey={streamTick} />
         </section>
 
         <section className="dash-side-grid">

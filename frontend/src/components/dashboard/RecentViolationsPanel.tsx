@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useViolations } from '../../hooks/useBackendLive';
 import type { ViolationListItem, ViolationSeverity } from '../../lib/api';
 
@@ -38,8 +39,19 @@ function relativeTime(iso: string): string {
   return `${Math.floor(hr / 24)}d atrás`;
 }
 
-export function RecentViolationsPanel(): JSX.Element {
-  const { data, loading, error } = useViolations({ limit: 8 });
+type Props = {
+  /** Counter — Dashboard incrementa via SSE pra forçar refetch instantâneo. */
+  refreshKey?: number;
+};
+
+export function RecentViolationsPanel({ refreshKey = 0 }: Props): JSX.Element {
+  const { data, loading, error, refetch } = useViolations({ limit: 8 });
+
+  /* Stream-driven refetch: Dashboard bumpa refreshKey quando chega event SSE. */
+  useEffect(() => {
+    if (refreshKey > 0) refetch();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
 
   return (
     <article className="recent-viol">
