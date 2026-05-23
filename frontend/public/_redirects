@@ -1,13 +1,13 @@
-# Proxy /api/* pro backend no Render — cookies viram first-party
-/api/*  https://fury-click-hero-desafio-t-cnico.onrender.com/:splat  200
-
-# SPA fallback — Cloudflare Pages não aceita /* /index.html 200 (false-positive de loop).
-# Listamos rotas explicitamente. Adicionar aqui quando novas páginas surgirem.
-/login                  /index.html  200
-/register               /index.html  200
-/dashboard              /index.html  200
-/dashboard/*            /index.html  200
-/auth/callback          /index.html  200
-/auth/forgot-password   /index.html  200
-/auth/reset-password    /index.html  200
-/auth/verify-email      /index.html  200
+# Vazio intencionalmente.
+#
+# Por que não tem nada aqui:
+#  - /api/* → backend Render: gerenciado por functions/api/[[path]].ts
+#    (Pages Function — bandwidth ilimitado + streaming nativo).
+#  - SPA fallback (/dashboard, /login, etc): gerenciado pelo 404.html
+#    truque — `npm run build` copia dist/index.html → dist/404.html.
+#    Cloudflare Pages serve 404.html quando nenhum arquivo casa, e o
+#    JS do React Router boota a rota correta lá.
+#
+# Cloudflare Pages NÃO aceita:
+#  - Proxy 200 pra origem externa (só relativo)
+#  - Wildcard /* → /index.html (false-positive de infinite loop)
