@@ -22,10 +22,11 @@
 
 | | URL | O que tem |
 |---|---|---|
-| 🎨 **Frontend** | **[fury-project.netlify.app](https://fury-project.netlify.app/)** | Landing page completa + login + dashboard pós-login (Netlify) |
+| 🎨 **Frontend** | **[fury-click-hero-desafio-t-cnico.pages.dev](https://fury-click-hero-desafio-t-cnico.pages.dev/)** | Landing page completa + login + dashboard pós-login (Cloudflare Pages) |
 | ⚙️ **Backend API** | **[fury-click-hero-desafio-t-cnico.onrender.com](https://fury-click-hero-desafio-t-cnico.onrender.com/health)** | Express + BullMQ + worker (Render) — clique no link pra ver `/health` |
+| 📖 **API Docs** | **[/docs](https://fury-click-hero-desafio-t-cnico.pages.dev/api/docs/)** | Swagger UI gerado de zod schemas (OpenAPI 3.1) |
 
-<sub>⏱ Primeira requisição depois de ~15 min ocioso pode demorar 30–50s — Render free tier hiberna a instância. Um GitHub Actions cron pinga `/health` a cada 10 min pra manter quente. Stack: **Netlify** (frontend estático) · **Render** (API + worker Node) · **Neon** (Postgres serverless) · **Upstash** (Redis serverless) · **Google OAuth**.</sub>
+<sub>⏱ Primeira requisição depois de ~15 min ocioso pode demorar 30–50s — Render free tier hiberna a instância. Um GitHub Actions cron pinga `/health` a cada 10 min pra manter quente. Stack: **Cloudflare Pages** (frontend estático + Pages Function proxia `/api/*` pro Render) · **Render** (API + worker Node) · **Neon** (Postgres serverless) · **Upstash** (Redis serverless) · **Google OAuth** · **Resend** (transactional email).</sub>
 
 </div>
 
@@ -190,7 +191,7 @@ sequenceDiagram
 | **Sessão** | PASETO V4 (Ed25519) | tokens assinados · claims `{ sub, email, tenantId }` |
 | **OAuth** | Google (intent-separated) | login só aceita user existente · register cria/vincula |
 | **Worker** | mesmo processo do API | concurrency configurável · DB update best-effort |
-| **Frontend** | Vite + React + GSAP | landing + auth + dashboard ao vivo (polling 4–5s) |
+| **Frontend** | Vite + React + GSAP | landing + auth + dashboard real-time (SSE + polling fallback) |
 
 ---
 
@@ -210,12 +211,24 @@ sequenceDiagram
 |---|---|---|---|
 | `POST` | `/auth/register` | Cria User + Tenant + Membership OWNER (transação atômica) | integration |
 | `POST` | `/auth/login` | PASETO V4.public + tenantId nas claims | integration |
+| `POST` | `/auth/logout` | Revoga jti no Redis deny-list até exp natural | integration |
+| `POST` | `/auth/forgot-password` / `/reset-password` | Token SHA-256 single-use + Resend transactional email | integration |
 | `GET` | `/auth/me` | Devolve user logado + tenantId | integration |
 | `GET` | `/auth/google?intent=login\|register` | Inicia OAuth flow (intent via state) | unit |
 | `GET` | `/auth/google/callback` | Recebe code → verifica id_token → find-or-create | unit |
 | `GET` | `/tenants/me` | Tenant info + role do user logado (404/403 defensivos) | integration |
 | `GET` | `/tenants/me/stats` | Agregação por status + severity pra dashboard | integration |
 | `GET` | `/tenants/me/violations` | Histórico paginado + filtros por status/severity | integration |
+| `GET` | `/tenants/me/webhook-secret` | Visualiza secret HMAC do workspace (OWNER-only) | integration |
+| `POST` | `/tenants/me/webhook-secret/rotate` | Rotaciona secret (CSRF + OWNER + audit) | integration |
+| `GET` | `/audit/me` | Audit log paginado (OWNER-only · ações sensíveis) | integration |
+
+### Real-time + documentação
+| Método | Path | Função | Cobertura |
+|---|---|---|---|
+| `GET` | **`/events/stream`** | Server-Sent Events — push de mudanças de jobs em tempo real, tenant-scoped | unit + integration |
+| `GET` | **`/openapi.json`** | OpenAPI 3.1 spec gerada de zod schemas (cache 1h) | integration |
+| `GET` | **`/docs`** | Swagger UI com tema FURY | integration |
 
 ### Payload exato do desafio
 
@@ -268,7 +281,7 @@ User ─┬─ Membership ──┬─ Tenant ──┬─ Integration  (Meta/Go
 
 ### Dashboard ao vivo · zero mock
 
-Após login, [/dashboard](https://fury-project.netlify.app/dashboard) consome **5 endpoints reais** via polling 4-5s:
+Após login, [/dashboard](https://fury-click-hero-desafio-t-cnico.pages.dev/dashboard) consome endpoints reais via **SSE em tempo real** (com fallback de polling 10s caso o stream caia):
 
 | Painel | Endpoint | O que mostra |
 |---|---|---|
@@ -291,25 +304,45 @@ Após login, [/dashboard](https://fury-project.netlify.app/dashboard) consome **
 
 ## 🧪 Testes (XP Gate)
 
-### 94 testes em 14 arquivos · master sempre verde
+### 203 testes em 27 arquivos · master sempre verde
+
+**Backend (168 pass + 6 skipped E2E que exigem Docker = 174 totais):**
 
 | Arquivo | Cobre |
 |---|---|
 | `schemas/violation.test.ts` (7) | schema valid/invalid · ISO 8601 · strict · combinações |
 | `queue/violationQueue.test.ts` (7) | `buildJobId` · severity routing · backoff |
-| `routes/_jobState.test.ts` (3) | IN_FLIGHT_STATES + isInFlight |
+| `routes/_jobState.test.ts` (8) | IN_FLIGHT_STATES + isInFlight |
 | `routes/webhook.test.ts` (12) | POST integration · 202/400/200/404 · tenant validation · upsert · slug/id resolution |
 | `routes/jobs.test.ts` (5) | GET shape pra cada status (lê do Postgres) |
-| `routes/tenants.test.ts` (17) | `/tenants/me` · `/stats` (agregações) · `/violations` (paginação + filtros) · isolamento entre tenants |
+| `routes/tenants.test.ts` (24) | `/tenants/me` · `/stats` · `/violations` · `/webhook-secret` (view+rotate) · isolamento |
+| `routes/audit.test.ts` (8) | OWNER-only · paginação · filtro · isolation · clamp |
+| `routes/openapi.test.ts` (5) | spec 3.1 · paths · schemas · security schemes · /docs HTML |
+| `routes/events.test.ts` (3) | SSE handshake · push de eventos · multi-tenant isolation |
+| `sse/sseEvents.test.ts` (11) | format frame · parseTenantFromJobId · attachSseSubscriber · cleanup |
 | `routes/health.test.ts` (3) | redis up/down + queue counts |
-| `routes/deadletter.test.ts` (4) | listagem failed + limit + cap |
+| `routes/deadletter.test.ts` (6) | listagem failed + auth + limit + cap |
 | `routes/metrics.test.ts` (4) | formato Prometheus + uptime |
 | `worker/upstream.test.ts` (5) | 2xx · 4xx · 5xx · timeout · network |
 | `worker/processor.test.ts` (8) | propagação UpstreamError + writes em Violation (ACTIVE/COMPLETED) |
 | `worker/onFailure.test.ts` (4) | handler de retries esgotados → Violation FAILED |
-| `auth/users.google.test.ts` (7) | findOrCreateGoogleUser (3 cenários) + findGoogleUser (lookup-only) |
+| `auth/users.google.test.ts` (7) | findOrCreateGoogleUser + findGoogleUser |
+| `auth/csrf.test.ts` (9) | double-submit cookie pattern · GET pass-through · header mismatch |
+| `auth/verification.test.ts` (4) | issue/consume token (single-use) · TTL · hash SHA-256 |
+| `auth/webhookSignature.test.ts` (14) | HMAC compute · verify · tampering · timing-safe |
 | `lib/requestId.test.ts` (3) | correlation id (gerado / cliente / inválido) |
-| **`e2e.test.ts` (6)** | **end-to-end real com Redis (testcontainers) + Worker live** |
+| **`e2e.test.ts` (6 skipped)** | **end-to-end real com Redis (testcontainers) + Worker live** |
+
+**Frontend (35 pass):**
+
+| Arquivo | Cobre |
+|---|---|
+| `components/ui/FuryLoader.test.tsx` (6) | fullscreen/inline · label · scroll lock · cleanup |
+| `lib/api.webhookSecret.test.ts` (6) | GET/POST · CSRF header · 504 fallback · network |
+| `lib/api.audit.test.ts` (4) | URL · query serialization · body parse · 403 |
+| `components/dashboard/WebhookSecretCard.test.tsx` (6) | hidden→reveal→rotate→hide flow + erros |
+| `components/dashboard/AuditLogPanel.test.tsx` (5) | mount · filter · erro 403 · vazio |
+| `hooks/useEventStream.test.ts` (8) | EventSource URL · withCredentials · status · cleanup |
 
 ### E2E real cobre comportamento que mocks não conseguem
 
@@ -379,11 +412,12 @@ UPSTREAM_TIMEOUT_MS=5000
 
 Todas validadas via Zod em [backend/src/config/env.ts](backend/src/config/env.ts) — boot falha cedo se inválidas. Veja [backend/.env.example](backend/.env.example) pra template completo.
 
-**`frontend/.env`**:
+**`frontend/.env`** (opcional — frontend não consome envs hoje):
 ```bash
-# Em dev fica vazio (Vite proxy /api → localhost:3001).
-# Em prod (Netlify): apontar pra Render.
-VITE_API_URL=https://fury-click-hero-desafio-t-cnico.onrender.com
+# Vazio por design. O frontend usa `API_BASE = '/api'` hardcoded;
+# em dev, Vite proxia /api → localhost:3001; em prod, Cloudflare Pages
+# Function (frontend/functions/api/[[path]].ts) proxia /api/* → Render.
+# Cookies HttpOnly viram first-party automaticamente — sem CORS dance.
 ```
 
 ---
