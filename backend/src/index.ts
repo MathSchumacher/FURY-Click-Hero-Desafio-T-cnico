@@ -15,6 +15,7 @@ import { tenantsRouter } from './routes/tenants.js';
 import { openapiRouter } from './routes/openapi.js';
 import { eventsRouter } from './routes/events.js';
 import { auditRouter } from './routes/audit.js';
+import { changePasswordRouter } from './routes/changePassword.js';
 import './worker.js';
 
 const isProd = env.NODE_ENV === 'production';
@@ -121,6 +122,7 @@ app.use(tenantsRouter);
 app.use(openapiRouter);
 app.use(eventsRouter);
 app.use(auditRouter);
+app.use(changePasswordRouter);
 
 /**
  * Error handler global.
@@ -166,6 +168,7 @@ app.listen(env.PORT, () => {
         'GET  /docs',
         'GET  /events/stream   (auth, SSE)',
         'GET  /audit/me          (auth, OWNER)',
+        'POST /auth/change-password (auth, CSRF)',
       ],
     },
     'http:listening',

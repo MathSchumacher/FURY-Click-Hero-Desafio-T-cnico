@@ -145,6 +145,18 @@ export function getViolations(params: {
   return authed<ViolationsPage>(`/tenants/me/violations${suffix ? `?${suffix}` : ''}`);
 }
 
+/* ── Change password ─────────────────────────────────────────── */
+
+export function changePassword(payload: {
+  currentPassword: string;
+  newPassword: string;
+}): Promise<{ ok: true }> {
+  return authed<{ ok: true }>('/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 /* ── Audit log (OWNER-only) ──────────────────────────────────── */
 
 export type AuditEvent = {

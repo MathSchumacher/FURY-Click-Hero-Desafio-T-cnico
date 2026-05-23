@@ -6,6 +6,8 @@ import { SeverityDonut } from '../components/dashboard/SeverityDonut';
 import { ConnectionsHealth } from '../components/dashboard/ConnectionsHealth';
 import { WebhookSecretCard } from '../components/dashboard/WebhookSecretCard';
 import { AuditLogPanel } from '../components/dashboard/AuditLogPanel';
+import { AccountSettingsCard } from '../components/dashboard/AccountSettingsCard';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useStats } from '../hooks/useBackendLive';
 import { useEventStream } from '../hooks/useEventStream';
@@ -61,7 +63,14 @@ function buildQuickStats(stats: ReturnType<typeof useStats>['data']): QuickStatC
 }
 
 export default function DashboardPage(): JSX.Element {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  async function handleLogout(): Promise<void> {
+    await logout();
+    navigate('/login');
+  }
+
   /* Polling 10s como fallback (caso SSE caia). Stream dispara refetch
      instantâneo via streamTick → bump nos hooks de polling. */
   const { data: stats, refetch: refetchStats } = useStats(10_000);
@@ -145,6 +154,12 @@ export default function DashboardPage(): JSX.Element {
         </section>
 
         <section className="dash-settings">
+          {user && (
+            <AccountSettingsCard
+              user={{ id: user.id, name: user.name, email: user.email }}
+              onLogout={() => { void handleLogout(); }}
+            />
+          )}
           <WebhookSecretCard />
           <AuditLogPanel />
         </section>

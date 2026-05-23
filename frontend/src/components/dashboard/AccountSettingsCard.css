@@ -1,0 +1,208 @@
+/* ============================================================
+   Account Settings Card
+   ============================================================ */
+
+.acctset {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 60%),
+    rgba(255, 255, 255, 0.015);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+  padding: var(--sp-5);
+  position: relative;
+  overflow: hidden;
+}
+
+.acctset::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.18) 50%,
+    transparent 100%
+  );
+}
+
+.acctset__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.acctset__title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.acctset__user {
+  display: flex;
+  gap: var(--sp-4);
+  align-items: center;
+  padding: var(--sp-4);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  margin-bottom: var(--sp-4);
+}
+
+.acctset__avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--c-accent-grad);
+  color: white;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  box-shadow: var(--glow-xs);
+}
+
+.acctset__user-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.acctset__user-name {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 2px;
+  color: var(--c-text);
+}
+
+.acctset__user-email {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--c-text-muted);
+  margin: 0;
+  word-break: break-all;
+}
+
+/* ── Section: change password ──────────────────────────────── */
+
+.acctset__section {
+  border-top: 1px dashed var(--c-border);
+  padding-top: var(--sp-4);
+}
+
+.acctset__section-title {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--c-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin: 0 0 var(--sp-3);
+}
+
+.acctset__form {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.acctset__field {
+  display: grid;
+  gap: 4px;
+}
+
+.acctset__label {
+  font-size: 0.78rem;
+  color: var(--c-text-muted);
+  font-weight: 500;
+}
+
+.acctset__input {
+  padding: 10px 14px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-border-strong);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--c-text);
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  transition: border-color var(--t-fast);
+}
+
+.acctset__input:focus {
+  outline: none;
+  border-color: var(--c-border-accent);
+  box-shadow: 0 0 0 3px rgba(var(--c-accent-rgb), 0.10);
+}
+
+.acctset__actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.acctset__btn {
+  padding: 10px 18px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-border-strong);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--c-text);
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--t-fast);
+}
+
+.acctset__btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--c-border-accent);
+}
+
+.acctset__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.acctset__btn--primary {
+  background: var(--c-accent-grad);
+  border-color: transparent;
+  color: white;
+  box-shadow: var(--glow-xs);
+}
+
+.acctset__btn--primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+  box-shadow: var(--glow-sm);
+}
+
+.acctset__btn--danger {
+  color: var(--c-accent);
+  border-color: rgba(var(--c-accent-rgb), 0.35);
+}
+
+.acctset__btn--danger:hover {
+  background: rgba(var(--c-accent-rgb), 0.10);
+  border-color: rgba(var(--c-accent-rgb), 0.55);
+}
+
+.acctset__error {
+  padding: 10px 14px;
+  background: rgba(var(--c-accent-rgb), 0.08);
+  border-left: 2px solid var(--c-accent);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  color: var(--c-text);
+  font-size: 0.85rem;
+  font-family: var(--font-mono);
+}
