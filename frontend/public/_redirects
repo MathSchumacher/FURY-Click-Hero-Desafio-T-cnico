@@ -1,5 +1,13 @@
-# Proxy /api/* pro backend no Render (cookies viram first-party de Netlify)
-/api/*  https://fury-click-hero-desafio-t-cnico.onrender.com/:splat  200!
+# Proxy /api/* pro backend no Render — cookies viram first-party
+/api/*  https://fury-click-hero-desafio-t-cnico.onrender.com/:splat  200
 
-# SPA fallback do React Router
-/*      /index.html                                                   200
+# SPA fallback — Cloudflare Pages não aceita /* /index.html 200 (false-positive de loop).
+# Listamos rotas explicitamente. Adicionar aqui quando novas páginas surgirem.
+/login                  /index.html  200
+/register               /index.html  200
+/dashboard              /index.html  200
+/dashboard/*            /index.html  200
+/auth/callback          /index.html  200
+/auth/forgot-password   /index.html  200
+/auth/reset-password    /index.html  200
+/auth/verify-email      /index.html  200
