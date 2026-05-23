@@ -1,8 +1,14 @@
+import type { ReactElement } from 'react';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { WebhookSecretCard } from './WebhookSecretCard';
+import { ToastProvider } from '../ui/Toast/Toast';
 import * as api from '../../lib/api';
+
+function renderWithToast(ui: ReactElement): ReturnType<typeof render> {
+  return render(<ToastProvider>{ui}</ToastProvider>);
+}
 
 /**
  * Specs do card de webhook secret.
@@ -30,7 +36,7 @@ describe('WebhookSecretCard', () => {
   });
 
   it('estado inicial: secret oculto, botão "Revelar secret" visível, sem chamar API', () => {
-    render(<WebhookSecretCard />);
+    renderWithToast(<WebhookSecretCard />);
     expect(screen.getByRole('button', { name: /revelar secret/i })).toBeInTheDocument();
     expect(screen.queryByText('whk_initial_abc123')).not.toBeInTheDocument();
     expect(api.getWebhookSecret).not.toHaveBeenCalled();
@@ -38,7 +44,7 @@ describe('WebhookSecretCard', () => {
 
   it('click "Revelar" chama getWebhookSecret e renderiza o secret + instructions', async () => {
     const user = userEvent.setup();
-    render(<WebhookSecretCard />);
+    renderWithToast(<WebhookSecretCard />);
 
     await user.click(screen.getByRole('button', { name: /revelar secret/i }));
 
@@ -54,7 +60,7 @@ describe('WebhookSecretCard', () => {
       new Error('apenas OWNER pode visualizar'),
     );
     const user = userEvent.setup();
-    render(<WebhookSecretCard />);
+    renderWithToast(<WebhookSecretCard />);
 
     await user.click(screen.getByRole('button', { name: /revelar secret/i }));
 
@@ -63,7 +69,7 @@ describe('WebhookSecretCard', () => {
 
   it('fluxo de rotação: confirma → rotateWebhookSecret → mostra novo secret', async () => {
     const user = userEvent.setup();
-    render(<WebhookSecretCard />);
+    renderWithToast(<WebhookSecretCard />);
 
     /* Primeiro revela */
     await user.click(screen.getByRole('button', { name: /revelar secret/i }));
@@ -88,7 +94,7 @@ describe('WebhookSecretCard', () => {
 
   it('cancelar rotação volta pro estado revelado sem chamar API', async () => {
     const user = userEvent.setup();
-    render(<WebhookSecretCard />);
+    renderWithToast(<WebhookSecretCard />);
 
     await user.click(screen.getByRole('button', { name: /revelar secret/i }));
     await screen.findByText('whk_initial_abc123');
@@ -101,7 +107,7 @@ describe('WebhookSecretCard', () => {
 
   it('"Ocultar" colapsa o card de volta pro estado inicial', async () => {
     const user = userEvent.setup();
-    render(<WebhookSecretCard />);
+    renderWithToast(<WebhookSecretCard />);
 
     await user.click(screen.getByRole('button', { name: /revelar secret/i }));
     await screen.findByText('whk_initial_abc123');

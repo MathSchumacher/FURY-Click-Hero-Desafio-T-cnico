@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom';
 import { AuthLayout } from '../components/auth/AuthLayout';
 import { AuthField } from '../components/auth/AuthField';
 import { requestPasswordReset } from '../lib/auth';
+import { useToast } from '../components/ui/Toast/Toast';
 
 export default function ForgotPasswordPage(): JSX.Element {
+  const toast = useToast();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
@@ -17,8 +19,11 @@ export default function ForgotPasswordPage(): JSX.Element {
     try {
       await requestPasswordReset(email.trim());
       setDone(true);
+      toast.success('Pedido enviado. Verifique seu email em alguns minutos.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro inesperado');
+      const msg = err instanceof Error ? err.message : 'Erro inesperado';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }

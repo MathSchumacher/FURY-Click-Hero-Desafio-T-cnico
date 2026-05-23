@@ -45,6 +45,9 @@ import './components/dashboard/SeverityDonut.css';
 import './components/dashboard/ConnectionsHealth.css';
 import './pages/Dashboard.css';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { ToastProvider } from './components/ui/Toast/Toast';
+import { ErrorBoundary } from './components/ui/ErrorBoundary/ErrorBoundary';
+import { FuryLoader } from './components/ui/FuryLoader/FuryLoader';
 
 const LoginPage = lazy(() => import('./pages/Login'));
 const RegisterPage = lazy(() => import('./pages/Register'));
@@ -52,6 +55,7 @@ const DashboardPage = lazy(() => import('./pages/Dashboard'));
 const AuthCallbackPage = lazy(() => import('./pages/AuthCallback'));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPassword'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPassword'));
+const NotFoundPage = lazy(() => import('./pages/NotFound'));
 
 function LandingPage(): JSX.Element {
   return (
@@ -78,27 +82,32 @@ function LandingPage(): JSX.Element {
 
 export function App(): JSX.Element {
   return (
-    <BrowserRouter>
-      <OpeningSplash />
-      <FuryCursor />
-      <Suspense fallback={null}>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/auth/callback" element={<AuthCallbackPage />} />
-          <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <DashboardPage />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
-      </Suspense>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <ToastProvider>
+        <BrowserRouter>
+          <OpeningSplash />
+          <FuryCursor />
+          <Suspense fallback={<FuryLoader label="carregando" />}>
+            <Routes>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/auth/callback" element={<AuthCallbackPage />} />
+              <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <DashboardPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </Suspense>
+        </BrowserRouter>
+      </ToastProvider>
+    </ErrorBoundary>
   );
 }

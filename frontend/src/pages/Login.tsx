@@ -3,9 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AuthLayout } from '../components/auth/AuthLayout';
 import { AuthField } from '../components/auth/AuthField';
 import { login, getGoogleSignInUrl } from '../lib/auth';
+import { useToast } from '../components/ui/Toast/Toast';
 
 export default function LoginPage(): JSX.Element {
   const nav = useNavigate();
+  const toast = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(true);
@@ -20,12 +22,14 @@ export default function LoginPage(): JSX.Element {
     setLoading(true);
     try {
       await login(email.trim(), password);
+      toast.success('Login bem-sucedido. Carregando dashboard…');
       nav('/dashboard');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro inesperado';
       setError(msg);
       const rid = (err as { requestId?: string }).requestId;
       if (typeof rid === 'string') setRequestId(rid);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }

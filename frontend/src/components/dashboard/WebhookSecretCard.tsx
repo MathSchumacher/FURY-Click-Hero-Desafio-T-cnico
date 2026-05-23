@@ -1,6 +1,7 @@
 import { useState, type JSX } from 'react';
 import { getWebhookSecret, rotateWebhookSecret } from '../../lib/api';
 import { FuryLoader } from '../ui/FuryLoader/FuryLoader';
+import { useToast } from '../ui/Toast/Toast';
 import './WebhookSecretCard.css';
 
 /**
@@ -21,6 +22,7 @@ import './WebhookSecretCard.css';
 type View = 'hidden' | 'loading' | 'revealed' | 'confirming' | 'rotating';
 
 export function WebhookSecretCard(): JSX.Element {
+  const toast = useToast();
   const [view, setView] = useState<View>('hidden');
   const [secret, setSecret] = useState<string | null>(null);
   const [instructions, setInstructions] = useState<string | null>(null);
@@ -57,9 +59,12 @@ export function WebhookSecretCard(): JSX.Element {
       setSecret(data.secret);
       setView('revealed');
       setCopyStatus('idle');
+      toast.success('Webhook secret rotacionado. Copie o novo valor agora.');
     } catch (err) {
-      setError((err as Error).message);
+      const msg = (err as Error).message;
+      setError(msg);
       setView('revealed');
+      toast.error(`Falha ao rotacionar: ${msg}`);
     }
   }
 
@@ -68,9 +73,11 @@ export function WebhookSecretCard(): JSX.Element {
     try {
       await navigator.clipboard.writeText(secret);
       setCopyStatus('copied');
+      toast.success('Secret copiado pro clipboard');
       setTimeout(() => { setCopyStatus('idle'); }, 1800);
     } catch {
-      /* clipboard API pode falhar em http inseguro — fallback silencioso. */
+      /* clipboard API pode falhar em http inseguro — toast fallback */
+      toast.error('Não consegui acessar o clipboard. Selecione e copie manual.');
     }
   }
 
