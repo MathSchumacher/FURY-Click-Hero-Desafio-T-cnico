@@ -265,6 +265,201 @@ export function buildOpenApiSpec(): ReturnType<OpenApiGeneratorV31['generateDocu
     },
   });
 
+  /* ── Tenants stats + violations ─────────────────────────────── */
+
+  const tenantStats = registry.register(
+    'TenantStats',
+    z.object({
+      total: z.number().int(),
+      byStatus: z.object({
+        queued: z.number().int(),
+        active: z.number().int(),
+        completed: z.number().int(),
+        failed: z.number().int(),
+      }),
+      bySeverity: z.object({
+        LOW: z.number().int(),
+        MEDIUM: z.number().int(),
+        HIGH: z.number().int(),
+        CRITICAL: z.number().int(),
+      }),
+    }),
+  );
+
+  const violationListItem = registry.register(
+    'ViolationListItem',
+    z.object({
+      id: z.string(),
+      adId: z.string(),
+      severity: z.enum(SEVERITIES),
+      violationType: z.enum(VIOLATION_TYPES),
+      status: z.enum(['queued', 'active', 'completed', 'failed']),
+      attempts: z.number().int(),
+      detectedAt: z.string().datetime(),
+      createdAt: z.string().datetime(),
+      finishedAt: z.string().datetime().nullable(),
+      error: z.string().nullable(),
+      upstreamStatus: z.number().int().nullable(),
+      upstreamLatencyMs: z.number().int().nullable(),
+    }),
+  );
+
+  registry.registerPath({
+    method: 'get',
+    path: '/tenants/me/stats',
+    tags: ['Tenants'],
+    summary: 'Agregação de violations por status + severity',
+    security: [{ cookieAuth: [] }, { bearerAuth: [] }],
+    responses: {
+      200: { description: 'Counts.', content: { 'application/json': { schema: tenantStats } } },
+      401: { description: 'Não autenticado.', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
+
+  registry.registerPath({
+    method: 'get',
+    path: '/tenants/me/violations',
+    tags: ['Tenants'],
+    summary: 'Lista paginada do histórico de violations',
+    security: [{ cookieAuth: [] }, { bearerAuth: [] }],
+    request: {
+      query: z.object({
+        page: z.coerce.number().int().min(1).optional().openapi({ example: 1 }),
+        limit: z.coerce.number().int().min(1).max(100).optional().openapi({ example: 20 }),
+        status: z.enum(['queued', 'active', 'completed', 'failed']).optional(),
+        severity: z.enum(SEVERITIES).optional(),
+      }),
+    },
+    responses: {
+      200: {
+        description: 'Página de violations.',
+        content: {
+          'application/json': {
+            schema: z.object({
+              total: z.number().int(),
+              page: z.number().int(),
+              limit: z.number().int(),
+              items: z.array(violationListItem),
+            }),
+          },
+        },
+      },
+      400: { description: 'Query inválida.', content: { 'application/json': { schema: errorResponse } } },
+      401: { description: 'Não autenticado.', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
+
+  /* ── Jobs ────────────────────────────────────────────────────── */
+
+  registry.registerPath({
+    method: 'get',
+    path: '/jobs/{id}',
+    tags: ['Jobs'],
+    summary: 'Status atual de um job BullMQ (com tenant scope)',
+    security: [{ cookieAuth: [] }, { bearerAuth: [] }],
+    request: {
+      params: z.object({ id: z.string().openapi({ example: 'tenant_acme__ad_42' }) }),
+    },
+    responses: {
+      200: {
+        description: 'Job state.',
+        content: {
+          'application/json': {
+            schema: z.object({
+              jobId: z.string(),
+              status: z.enum(['queued', 'active', 'completed', 'failed']),
+              attempts: z.number().int(),
+              result: z
+                .object({
+                  upstreamStatus: z.number().int().nullable(),
+                  upstreamLatencyMs: z.number().int().nullable(),
+                  adId: z.string(),
+                  tenantId: z.string(),
+                  finishedAt: z.string().datetime().nullable(),
+                })
+                .nullable(),
+              error: z.string().nullable(),
+            }),
+          },
+        },
+      },
+      404: { description: 'Job não existe ou pertence a outro tenant.', content: { 'application/json': { schema: errorResponse } } },
+      401: { description: 'Não autenticado.', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
+
+  /* ── Audit log ───────────────────────────────────────────────── */
+
+  registry.registerPath({
+    method: 'get',
+    path: '/audit/me',
+    tags: ['Audit'],
+    summary: 'Eventos de audit do workspace (OWNER-only)',
+    description:
+      'Registro append-only de ações sensíveis: logins, password resets, rotação de secret, ' +
+      'OAuth, alterações de membership. Multi-tenant isolation aplicado.',
+    security: [{ cookieAuth: [] }, { bearerAuth: [] }],
+    request: {
+      query: z.object({
+        page: z.coerce.number().int().min(1).optional(),
+        limit: z.coerce.number().int().min(1).max(100).optional(),
+        action: z.string().optional().openapi({
+          description: 'Filtra por AuditAction enum',
+          example: 'USER_LOGIN_SUCCESS',
+        }),
+      }),
+    },
+    responses: {
+      200: {
+        description: 'Página de eventos.',
+        content: {
+          'application/json': {
+            schema: z.object({
+              total: z.number().int(),
+              page: z.number().int(),
+              limit: z.number().int(),
+              items: z.array(
+                z.object({
+                  id: z.string(),
+                  action: z.string(),
+                  userId: z.string().nullable(),
+                  tenantId: z.string().nullable(),
+                  metadata: z.unknown(),
+                  ipAddress: z.string().nullable(),
+                  userAgent: z.string().nullable(),
+                  createdAt: z.string().datetime(),
+                }),
+              ),
+            }),
+          },
+        },
+      },
+      403: { description: 'Role insuficiente.', content: { 'application/json': { schema: errorResponse } } },
+      401: { description: 'Não autenticado.', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
+
+  /* ── SSE stream ──────────────────────────────────────────────── */
+
+  registry.registerPath({
+    method: 'get',
+    path: '/events/stream',
+    tags: ['Realtime'],
+    summary: 'Server-Sent Events — push de mudanças de jobs em tempo real',
+    description:
+      'Long-lived HTTP response com Content-Type `text/event-stream`. Emite frames ' +
+      '`connected`, `violation` (completed/failed/active), heartbeats `:ping` a cada 25s. ' +
+      'Tenant-scoped: jobs de outros workspaces NUNCA vazam.',
+    security: [{ cookieAuth: [] }, { bearerAuth: [] }],
+    responses: {
+      200: {
+        description: 'Stream aberto.',
+        content: { 'text/event-stream': { schema: z.string() } },
+      },
+      401: { description: 'Não autenticado.', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
+
   registry.registerPath({
     method: 'get',
     path: '/health',
@@ -291,13 +486,19 @@ export function buildOpenApiSpec(): ReturnType<OpenApiGeneratorV31['generateDocu
       license: { name: 'MIT' },
     },
     servers: [
-      { url: 'https://fury-project.netlify.app/api', description: 'Produção (via Netlify proxy)' },
+      {
+        url: 'https://fury-click-hero-desafio-t-cnico.pages.dev/api',
+        description: 'Produção (via Cloudflare Pages Function)',
+      },
       { url: 'http://localhost:3001', description: 'Desenvolvimento local' },
     ],
     tags: [
       { name: 'Webhook', description: 'Recepção de eventos de violação' },
       { name: 'Auth', description: 'Login, registro, sessão' },
       { name: 'Tenants', description: 'Workspaces (multi-tenant)' },
+      { name: 'Jobs', description: 'Status de jobs BullMQ' },
+      { name: 'Audit', description: 'Audit log (OWNER-only)' },
+      { name: 'Realtime', description: 'SSE / streams em tempo real' },
       { name: 'Ops', description: 'Health, métricas, monitoramento' },
     ],
   });

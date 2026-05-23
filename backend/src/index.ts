@@ -14,6 +14,7 @@ import { authRouter } from './routes/auth.js';
 import { tenantsRouter } from './routes/tenants.js';
 import { openapiRouter } from './routes/openapi.js';
 import { eventsRouter } from './routes/events.js';
+import { auditRouter } from './routes/audit.js';
 import './worker.js';
 
 const isProd = env.NODE_ENV === 'production';
@@ -119,6 +120,7 @@ app.use(authRouter);
 app.use(tenantsRouter);
 app.use(openapiRouter);
 app.use(eventsRouter);
+app.use(auditRouter);
 
 /**
  * Error handler global.
@@ -163,6 +165,7 @@ app.listen(env.PORT, () => {
         'GET  /openapi.json',
         'GET  /docs',
         'GET  /events/stream   (auth, SSE)',
+        'GET  /audit/me          (auth, OWNER)',
       ],
     },
     'http:listening',

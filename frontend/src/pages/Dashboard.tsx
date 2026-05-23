@@ -5,6 +5,7 @@ import { RecentViolationsPanel } from '../components/dashboard/RecentViolationsP
 import { SeverityDonut } from '../components/dashboard/SeverityDonut';
 import { ConnectionsHealth } from '../components/dashboard/ConnectionsHealth';
 import { WebhookSecretCard } from '../components/dashboard/WebhookSecretCard';
+import { AuditLogPanel } from '../components/dashboard/AuditLogPanel';
 import { useAuth } from '../hooks/useAuth';
 import { useStats } from '../hooks/useBackendLive';
 import { useEventStream } from '../hooks/useEventStream';
@@ -145,6 +146,7 @@ export default function DashboardPage(): JSX.Element {
 
         <section className="dash-settings">
           <WebhookSecretCard />
+          <AuditLogPanel />
         </section>
       </main>
     </div>

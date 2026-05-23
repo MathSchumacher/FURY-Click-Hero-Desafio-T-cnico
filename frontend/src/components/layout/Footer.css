@@ -79,6 +79,17 @@
   letter-spacing: 0.06em;
 }
 
+.site-footer__credit {
+  color: var(--c-accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--t-fast), color var(--t-fast);
+}
+.site-footer__credit:hover {
+  color: var(--c-accent-hot);
+  border-bottom-color: var(--c-accent);
+}
+
 @media (max-width: 800px) {
   .site-footer__inner { grid-template-columns: 1fr; }
   .site-footer__cols { grid-template-columns: repeat(3, 1fr); }

@@ -145,6 +145,37 @@ export function getViolations(params: {
   return authed<ViolationsPage>(`/tenants/me/violations${suffix ? `?${suffix}` : ''}`);
 }
 
+/* ── Audit log (OWNER-only) ──────────────────────────────────── */
+
+export type AuditEvent = {
+  id: string;
+  action: string;
+  userId: string | null;
+  tenantId: string | null;
+  metadata: unknown;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: string;
+};
+
+export type AuditPage = {
+  total: number;
+  page: number;
+  limit: number;
+  items: AuditEvent[];
+};
+
+export function getAuditLog(
+  params: { page?: number; limit?: number; action?: string } = {},
+): Promise<AuditPage> {
+  const qs = new URLSearchParams();
+  if (params.page) qs.set('page', String(params.page));
+  if (params.limit) qs.set('limit', String(params.limit));
+  if (params.action) qs.set('action', params.action);
+  const suffix = qs.toString();
+  return authed<AuditPage>(`/audit/me${suffix ? `?${suffix}` : ''}`);
+}
+
 /* ── Webhook secret (OWNER-only — view + rotate) ─────────────── */
 
 export type WebhookSecretView = {

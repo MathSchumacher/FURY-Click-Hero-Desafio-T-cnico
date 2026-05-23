@@ -40,7 +40,17 @@ export function Footer(): JSX.Element {
       </div>
 
       <div className="container site-footer__bottom">
-        <span className="mono dim">© {year} FURY · Feito no Brasil 🔥</span>
+        <span className="mono dim">
+          © {year} FURY · Feito por{' '}
+          <a
+            href="https://matheusmschumacherportfolio.web.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="site-footer__credit"
+          >
+            Matheus Schumacher
+          </a>
+        </span>
         <span className="mono dim site-footer__build">todos os sistemas em chamas</span>
       </div>
     </footer>
